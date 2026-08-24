@@ -1728,7 +1728,6 @@ let exercices = [];
 let performances = []; // séances : {id, weekKey, date, note, exercices:[{exoId, sets:[{poids,reps}]}]}
 let suivi = [];
 let objectifs = {mensu:{}, suivi:{}};
-let monthlyGoals = [];
 let reminderSettings = {day:null};
 let reminderDismissedWeek = null;
 let pseudo = '';
@@ -1896,7 +1895,7 @@ function updateCompareSlider(val){
 async function loadAll(){
   try{
     const uid = currentUser.id;
-    const [rProfile, rExos, rMensu, rSeances, rSeries, rSuivi, rObj, rGoals, rRemind] = await Promise.all([
+    const [rProfile, rExos, rMensu, rSeances, rSeries, rSuivi, rObj, rRemind] = await Promise.all([
       db.from('profiles').select('pseudo, avatar, onboarded').eq('id', uid).maybeSingle(),
       db.from('exercices').select('*').order('created_at'),
       db.from('mensurations').select('*'),
@@ -1904,11 +1903,10 @@ async function loadAll(){
       db.from('series').select('*').order('position'),
       db.from('suivi').select('*'),
       db.from('objectifs').select('*').eq('user_id', uid).maybeSingle(),
-      db.from('monthly_goals').select('*').order('created_at'),
       db.from('reminder_settings').select('*').eq('user_id', uid).maybeSingle()
     ]);
 
-    const firstError = [rProfile,rExos,rMensu,rSeances,rSeries,rSuivi,rObj,rGoals,rRemind]
+    const firstError = [rProfile,rExos,rMensu,rSeances,rSeries,rSuivi,rObj,rRemind]
       .map(r=>r.error).find(Boolean);
     if(firstError) throw firstError;
 
@@ -1957,10 +1955,6 @@ async function loadAll(){
       mensu: rObj.data?.mensu || {},
       suivi: rObj.data?.suivi || {}
     };
-
-    monthlyGoals = (rGoals.data||[]).map(g=>({
-      id: g.id, month: g.month, text: g.text, done: !!g.done
-    }));
 
     reminderSettings = {day: rRemind.data?.day ?? null};
     reminderDismissedWeek = rRemind.data?.dismissed_week ?? null;
@@ -2810,7 +2804,6 @@ async function save(key, value){
       case 'performances':      await syncPerformances(); break;
       case 'suivi':             await syncSuivi(); break;
       case 'objectifs':         await syncObjectifs(); break;
-      case 'monthlyGoals':      await syncMonthlyGoals(); break;
       case 'reminderSettings':
       case 'reminderDismissed': await syncReminder(); break;
       default: console.warn('Clé de sauvegarde inconnue :', key);
@@ -2906,16 +2899,6 @@ async function syncObjectifs(){
     user_id: uid(), mensu: objectifs.mensu || {}, suivi: objectifs.suivi || {},
     updated_at: new Date().toISOString()
   }));
-}
-
-async function syncMonthlyGoals(){
-  await pruneMissing('monthly_goals', new Set(monthlyGoals.map(g=>g.id)));
-  if(!monthlyGoals.length) return;
-  check(await db.from('monthly_goals').upsert(
-    monthlyGoals.map(g=>({
-      id: g.id, user_id: uid(), month: g.month, text: g.text, done: !!g.done
-    }))
-  ));
 }
 
 async function syncReminder(){
@@ -3620,7 +3603,7 @@ async function confirmDeleteAllData(){
 
   try{
     // L'ordre importe : les séries dépendent des séances et des exercices.
-    for(const t of ['series','seances','mensurations','suivi','monthly_goals','exercices']){
+    for(const t of ['series','seances','mensurations','suivi','exercices']){
       const {error} = await db.from(t).delete().eq('user_id', currentUser.id);
       if(error) throw error;
     }
@@ -3644,7 +3627,6 @@ async function confirmDeleteAllData(){
   performances = [];
   suivi = [];
   objectifs = {mensu:{}, suivi:{}};
-  monthlyGoals = [];
   pseudo = '';
   reminderSettings = {day:null};
   reminderDismissedWeek = null;
