@@ -1079,6 +1079,28 @@ nav.tabs button.active .tab-badge{background:var(--accent);color:#fff;}
   font-family:var(--font-mono);font-size:11.5px;color:var(--accent-2);margin-top:10px;
 }
 
+.dialog-texte{
+  font-size:14px;line-height:1.6;color:var(--ink-soft);
+  margin:0 0 6px;white-space:pre-wrap;
+}
+#dialog-modal .modal-actions button{border-radius:999px;}
+
+#offline-banner{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:900;
+  align-items:center;justify-content:center;gap:10px;
+  padding:11px 18px;
+  background:var(--accent);color:#fff;
+  font-family:var(--font-body);font-size:13px;font-weight:600;
+  text-align:center;line-height:1.4;
+}
+#offline-banner.visible{display:flex;}
+.offline-dot{
+  width:8px;height:8px;border-radius:50%;background:#fff;flex-shrink:0;
+  animation:pulseDot 1.6s ease-in-out infinite;
+}
+@keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.35;}}
+body.offline .topbar{top:60px;}
+
 /* ---- Partage de profil ---- */
 .profile-share{
   display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
@@ -1308,7 +1330,8 @@ table tr{border-color:var(--glass-tint-strong);}
       <div class="card">
         <h2>Mesure de la semaine <button class="help-btn" onclick="toggleHelp('help-mensu')" aria-label="Aide">i</button></h2>
         <div class="card-body">
-          <p class="block-intro">Relève ton tour de pectoraux, bras, épaules, jambes et taille — une fois par semaine suffit.</p>
+          <p class="block-intro">Relève ton tour de pectoraux, bras, épaules, jambes et taille — une fois par semaine suffit.<br>
+            📷 Tu peux joindre une photo à la dernière étape pour comparer visuellement deux semaines.</p>
           <div class="help-box" id="help-mensu">
             <strong>Comment s'en servir ?</strong><br>
             Mesure-toi toujours dans les mêmes conditions (même moment de la journée, à froid) pour que la comparaison ait du sens.
@@ -1320,6 +1343,16 @@ table tr{border-color:var(--glass-tint-strong);}
         </div>
         <button class="primary" id="mensu-btn" onclick="startWizard('mensurations')">Ajouter mes mesures</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Comparer deux semaines <span class="tag">photos</span></h2>
+      <div class="chart-controls">
+        <select id="compare-week-a"></select>
+        <select id="compare-week-b"></select>
+        <button class="ghost" onclick="renderComparison()">Comparer</button>
+      </div>
+      <div id="compare-holder"><p class="empty">Ajoute des photos sur au moins deux semaines pour activer la comparaison.</p></div>
     </div>
 
     <div class="card">
@@ -1340,16 +1373,6 @@ table tr{border-color:var(--glass-tint-strong);}
     <div class="card">
       <h2>Historique</h2>
       <div id="mensu-history"></div>
-    </div>
-
-    <div class="card">
-      <h2>Comparer deux semaines <span class="tag">photos</span></h2>
-      <div class="chart-controls">
-        <select id="compare-week-a"></select>
-        <select id="compare-week-b"></select>
-        <button class="ghost" onclick="renderComparison()">Comparer</button>
-      </div>
-      <div id="compare-holder"><p class="empty">Ajoute des photos sur au moins deux semaines pour activer la comparaison.</p></div>
     </div>
   </div>
 
@@ -1768,6 +1791,19 @@ table tr{border-color:var(--glass-tint-strong);}
   </div>
 </div>
 
+<div id="dialog-modal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card" style="max-width:400px;">
+    <h3 id="dialog-titre">—</h3>
+    <p class="dialog-texte" id="dialog-texte"></p>
+    <div class="modal-actions" id="dialog-actions"></div>
+  </div>
+</div>
+
+<div id="offline-banner">
+  <span class="offline-dot"></span>
+  Hors ligne — tes modifications ne sont pas enregistrées tant que la connexion n'est pas revenue.
+</div>
+
 <div id="xp-stack"></div>
 <div id="toast"></div>
 
@@ -1798,16 +1834,6 @@ table tr{border-color:var(--glass-tint-strong);}
   </div>
 </div>
 
-<div id="delete-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeDeleteModal()">
-  <div class="modal-card" style="max-width:400px;">
-    <h3>Supprimer toutes les données</h3>
-    <p>Cette action est <strong style="color:var(--accent);">définitive et irréversible</strong>. Mensurations, séances, suivi, objectifs, photos — tout sera perdu, sans retour en arrière possible.</p>
-    <div class="modal-actions">
-      <button class="small" onclick="closeDeleteModal()">Annuler</button>
-      <button class="primary" onclick="confirmDeleteAllData()">Confirmer la suppression</button>
-    </div>
-  </div>
-</div>
 
 <div id="reminder-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) dismissReminder()">
   <div class="modal-card">
@@ -2045,10 +2071,6 @@ function weekShort(weekKey){ const [,w] = weekKey.split('-W'); return 'S'+parseI
 function weekLabel(weekKey){ const [y,w] = weekKey.split('-W'); return `S${parseInt(w)} · ${y}`; }
 function sortByWeek(arr){ return [...arr].sort((a,b)=>a.weekKey.localeCompare(b.weekKey)); }
 
-function toggleBox(id){
-  const el = document.getElementById(id);
-  el.style.display = el.style.display==='none' ? 'block' : 'none';
-}
 
 function updateClock(){
   const now = new Date();
@@ -2102,7 +2124,7 @@ function getExoEntries(exoId){
 function getMensuNote(id){ const m = mensurations.find(x=>x.id===id); return m && m.note ? m.note : ''; }
 function getSuiviNote(id){ const s = suivi.find(x=>x.id===id); return s && s.note ? s.note : ''; }
 function getSeanceNote(id){ const se = performances.find(x=>x.id===id); return se && se.note ? se.note : ''; }
-function showNote(text){ alert('Note :\n\n'+text); }
+function showNote(text){ afficherInfo('Note', text); }
 
 // ---- Photos de progression ----
 function resizeImageToDataURL(file, maxDim, quality){
@@ -2313,7 +2335,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v1.9.0';
+const APP_VERSION = 'v2.0.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -2680,10 +2702,14 @@ function buildMensuWizard(){
   );
   steps.push(recapStep('Récapitulatif', MENSU_FIELDS, ()=>data, ()=>`
     <label class="wiz-photo" for="wiz-photo" style="display:block;cursor:pointer;text-align:center;">
-      📷 Ajouter une photo de progression (optionnel)
+      📷 ${existing && existing.hasPhoto ? 'Remplacer la photo de cette semaine' : 'Ajouter une photo de progression'}
     </label>
     <input type="file" accept="image/*" id="wiz-photo" style="display:none;"
            onchange="document.querySelector('label[for=wiz-photo]').textContent = '📷 ' + (this.files[0]?.name || 'Photo sélectionnée')">
+    <div class="wiz-hint" style="margin-top:8px;">
+      Facultatif. Prise dans les mêmes conditions chaque semaine, elle rend la progression bien plus lisible
+      que les chiffres seuls. Elle reste privée : personne d'autre ne peut la voir.
+    </div>
   `));
 
   return {
@@ -3045,7 +3071,9 @@ function renderMensuRecap(){
   if(!el || !btn) return;
   if(entry){
     el.innerHTML = recapHTML(MENSU_FIELDS, entry) +
-      (entry.hasPhoto ? `<div class="wiz-prev">📷 Photo enregistrée</div>` : '');
+      (entry.hasPhoto
+        ? `<button class="small" style="margin-top:10px;" onclick="showPhoto('${entry.weekKey}')">📷 Voir la photo de la semaine</button>`
+        : `<div class="wiz-hint" style="margin-top:10px;">Aucune photo cette semaine — tu peux en ajouter une en modifiant tes mesures.</div>`);
     btn.textContent = 'Modifier mes mesures';
   } else {
     el.innerHTML = `<p class="recap-empty">Aucune mesure enregistrée pour cette semaine.</p>`;
@@ -3123,13 +3151,60 @@ function renderSeanceRecap(){
 async function deleteSeance(id){
   const se = performances.find(p=>p.id===id);
   if(!se) return;
-  if(!confirm("Supprimer cette seance ? L'XP et les records qu'elle a rapportes seront annules.")) return;
+  const ok = await confirmer('Supprimer cette séance ?',
+    "L'XP et les records qu'elle a rapportés seront annulés.\n\nCette action est définitive.", 'Supprimer');
+  if(!ok) return;
   performances = performances.filter(p=>p.id!==id);
   await save('performances', performances);
   renderSeanceRecap(); renderPerfHistory(); renderPerfWeekSelect();
   renderPerfChart(); renderHome();
   showToast('Seance supprimee');
 }
+
+// ============================================================
+//  MODALES GENERIQUES
+// ============================================================
+// Remplacent alert() et confirm(), qui affichaient des boites
+// systeme grises en rupture avec le reste du site.
+let dialogResolve = null;
+
+function fermerDialog(valeur){
+  document.getElementById('dialog-modal').style.display = 'none';
+  if(dialogResolve){ dialogResolve(valeur); dialogResolve = null; }
+}
+
+function afficherInfo(titre, texte){
+  document.getElementById('dialog-titre').textContent = titre;
+  document.getElementById('dialog-texte').textContent = texte;
+  document.getElementById('dialog-actions').innerHTML =
+    '<button class="primary" onclick="fermerDialog(true)">Fermer</button>';
+  document.getElementById('dialog-modal').style.display = 'flex';
+  return new Promise(function(res){ dialogResolve = res; });
+}
+
+function confirmer(titre, texte, labelOk){
+  document.getElementById('dialog-titre').textContent = titre;
+  document.getElementById('dialog-texte').textContent = texte;
+  document.getElementById('dialog-actions').innerHTML =
+    '<button class="small" onclick="fermerDialog(false)">Annuler</button>' +
+    '<button class="primary" onclick="fermerDialog(true)">' + (labelOk || 'Confirmer') + '</button>';
+  document.getElementById('dialog-modal').style.display = 'flex';
+  return new Promise(function(res){ dialogResolve = res; });
+}
+
+// ============================================================
+//  ETAT DE LA CONNEXION
+// ============================================================
+// En salle, le reseau passe mal. Mieux vaut prevenir clairement
+// que laisser croire qu'une donnee a ete enregistree.
+function majConnexion(){
+  const horsLigne = !navigator.onLine;
+  document.getElementById('offline-banner')?.classList.toggle('visible', horsLigne);
+  document.body.classList.toggle('offline', horsLigne);
+}
+window.addEventListener('online',  function(){ majConnexion(); showToast('Connexion retablie'); });
+window.addEventListener('offline', majConnexion);
+majConnexion();
 
 // ---- Aide contextuelle ----
 function toggleHelp(id){
@@ -4525,50 +4600,6 @@ function refreshAfterImport(){
   renderSuiviChart();
 }
 
-function openDeleteModal(){
-  document.getElementById('delete-modal').style.display = 'flex';
-}
-function closeDeleteModal(){
-  document.getElementById('delete-modal').style.display = 'none';
-}
-
-async function confirmDeleteAllData(){
-  closeDeleteModal();
-
-  try{
-    // L'ordre importe : les séries dépendent des séances et des exercices.
-    for(const t of ['series','seances','mensurations','suivi','exercices']){
-      const {error} = await db.from(t).delete().eq('user_id', currentUser.id);
-      if(error) throw error;
-    }
-    await db.from('objectifs').upsert({user_id: currentUser.id, mensu:{}, suivi:{}});
-    await db.from('profiles').upsert({id: currentUser.id, pseudo: ''});
-    await db.from('reminder_settings').upsert({user_id: currentUser.id, day:null, dismissed_week:null});
-
-    // Photos de progression
-    const {data: files} = await db.storage.from('photos').list(currentUser.id);
-    if(files && files.length){
-      await db.storage.from('photos').remove(files.map(f=>`${currentUser.id}/${f.name}`));
-    }
-  }catch(e){
-    console.error('Erreur lors de la suppression', e);
-    showToast('⚠️ La suppression a échoué — réessaie');
-    return;
-  }
-
-  mensurations = [];
-  exercices = [];
-  performances = [];
-  suivi = [];
-  objectifs = {mensu:{}, suivi:{}};
-  pseudo = '';
-  reminderSettings = {day:null};
-  reminderDismissedWeek = null;
-
-  document.getElementById('reminder-day-select').value = '';
-  refreshAfterImport();
-  showToast('Toutes les données ont été supprimées');
-}
 
 async function runImport(mode){
   const raw = document.getElementById('import-text').value.trim();
@@ -4581,7 +4612,10 @@ async function runImport(mode){
     return;
   }
   if(mode==='replace'){
-    if(!confirm('Ça va remplacer TOUTES tes données actuelles par celles importées. Continuer ?')) return;
+    const ok = await confirmer('Remplacer toutes tes données ?',
+      "Tes données actuelles seront écrasées par celles du fichier importé.\n\nCette action est définitive.",
+      'Importer');
+    if(!ok) return;
     replaceAllData(data);
   } else {
     mergeImportedData(data);
@@ -4785,14 +4819,6 @@ function renderPseudo(){
   const el = document.getElementById('hero-pseudo');
   if(el) el.textContent = pseudo || 'Ton carnet';
 }
-function savePseudo(el){
-  const val = el.textContent.replace(/\s+/g,' ').trim().slice(0,24);
-  el.textContent = val;
-  if(val === pseudo) return;
-  pseudo = val;
-  save('pseudo', pseudo);
-  if(val) showToast('Pseudo enregistré ✓');
-}
 
 // ---- Prochain jalon ----
 function goalPct(baseline, current, goal){
@@ -4851,16 +4877,18 @@ function isGoalReached(baseline, current, goal){
 }
 
 
-function shareOptionRow(id, label, checkedDefault){
-  return `<label style="display:flex;align-items:center;gap:8px;font-family:var(--font-body);font-size:13.5px;color:var(--ink);cursor:pointer;">
-    <input type="checkbox" class="goal-check" id="${id}" ${checkedDefault?'checked':''}>${label}
-  </label>`;
-}
 
-function deleteMensuration(id){
+async function deleteMensuration(id){
+  const m = mensurations.find(x=>x.id===id);
+  const ok = await confirmer('Supprimer cette mesure ?',
+    'La mesure de la semaine ' + (m ? weekLabel(m.weekKey) : '') +
+    " sera definitivement effacee, ainsi que l'XP qu'elle a rapporte.", 'Supprimer');
+  if(!ok) return;
   mensurations = mensurations.filter(m=>m.id!==id);
   save('mensurations', mensurations);
-  renderMensuHistory(); renderMensuChart(); renderHome();
+  renderMensuHistory(); renderMensuChart(); renderMensuRecap();
+  renderCompareSelects(); renderHome();
+  showToast('Mesure supprimee');
 }
 
 function renderMensuHistory(){
@@ -4899,7 +4927,14 @@ function editExoGoal(id){
   showToast('Objectif mis à jour ✓');
 }
 
-function deleteExercice(id){
+async function deleteExercice(id){
+  const exo = exercices.find(e=>e.id===id);
+  const nb = getExoEntries(id).length;
+  const ok = await confirmer('Supprimer cet exercice ?',
+    (exo ? '« ' + exo.name + ' »' : 'Cet exercice') +
+    (nb ? ' et ses ' + nb + ' passage' + (nb>1?'s':'') + ' enregistre' + (nb>1?'s':'') : '') +
+    " seront definitivement effaces, ainsi que l'XP et les records associes.", 'Supprimer');
+  if(!ok) return;
   exercices = exercices.filter(e=>e.id!==id);
   performances.forEach(se=>{ se.exercices = se.exercices.filter(b=>b.exoId!==id); });
   performances = performances.filter(se=>se.exercices.length>0);
@@ -5011,7 +5046,12 @@ function renderPerfWeekView(){
 }
 
 // ---- Suivi hebdo ----
-function deleteSuivi(id){
+async function deleteSuivi(id){
+  const e = suivi.find(x=>x.id===id);
+  const ok = await confirmer('Supprimer ce suivi ?',
+    'Le suivi de la semaine ' + (e ? weekLabel(e.weekKey) : '') +
+    " sera definitivement efface, ainsi que l'XP qu'il a rapporte.", 'Supprimer');
+  if(!ok) return;
   suivi = suivi.filter(s=>s.id!==id);
   save('suivi', suivi);
   renderSuiviHistory(); renderSuiviChart(); renderHome();
