@@ -1307,8 +1307,9 @@ table tr{border-color:var(--glass-tint-strong);}
       <div class="help-box" id="help-suivi">
         <strong>Pourquoi une fois par semaine ?</strong><br>
         Le poids fluctue beaucoup d'un jour à l'autre (eau, digestion, sommeil) : un relevé hebdomadaire donne une
-        tendance bien plus fiable qu'un suivi quotidien. Coche les semaines de cure de créatine pour pouvoir en
-        mesurer l'effet dans l'onglet Corrélations.
+        tendance bien plus fiable qu'un suivi quotidien.<br><br>
+        <strong>Bonus du dimanche :</strong> faire ton bilan le dimanche rapporte 5 XP supplémentaires.
+        Rien ne t'y oblige — tu peux saisir n'importe quel jour de la semaine sans rien perdre d'autre.
       </div>
       <div class="info-line" id="suivi-week-info"></div>
       <div id="suivi-recap"></div>
@@ -1372,10 +1373,6 @@ table tr{border-color:var(--glass-tint-strong);}
     <div class="card">
       <h2>Poids vs Volume soulevé</h2>
       <div id="corr-poids-volume"></div>
-    </div>
-    <div class="card">
-      <h2>Créatine : effet sur le volume</h2>
-      <div id="creatine-insight"></div>
     </div>
   </div>
   <div class="view" id="view-reglages">
@@ -1473,7 +1470,6 @@ table tr{border-color:var(--glass-tint-strong);}
       <button class="ghost" onclick="openImportModal()">📥 Importer des données</button>
       <button class="ghost" onclick="generatePDF()">📄 Exporter un bilan (PDF)</button>
       <button class="ghost" onclick="openShareConfigModal()">🖼️ Partager ma progression</button>
-      <button class="ghost danger" onclick="openDeleteModal()">🗑️ Supprimer toutes mes données</button>
     </div>
     <div class="footer-note">FONTE<span>.</span> — Ton carnet, synchronisé et privé.</div>
   </footer>
@@ -2070,7 +2066,7 @@ async function loadAll(){
     suivi = (rSuivi.data||[]).map(s=>({
       id: s.id, date: s.date, weekKey: s.week_key,
       calories: numOrNull(s.calories), poids: numOrNull(s.poids), taille: numOrNull(s.taille),
-      creatine: !!s.creatine, note: s.note
+      bonusDimanche: !!s.bonus_dimanche, note: s.note
     }));
 
     objectifs = {
@@ -2078,7 +2074,7 @@ async function loadAll(){
       suivi: rObj.data?.suivi || {}
     };
 
-    reminderSettings = {day: rRemind.data?.day ?? null};
+    reminderSettings = {day: numVersJour(rRemind.data?.day)};
     reminderDismissedWeek = rRemind.data?.dismissed_week ?? null;
 
   }catch(e){
@@ -2147,6 +2143,18 @@ async function loadAll(){
 }
 
 const numOrNull = v => v==null ? null : Number(v);
+
+// Dimanche selon l'heure locale de l'appareil : un utilisateur
+// à l'étranger doit voir son bonus tomber son dimanche à lui.
+function estDimanche(){ return new Date().getDay() === 0; }
+const BONUS_DIMANCHE = 5;
+
+// La colonne `day` est un entier en base, alors que le menu manipule
+// des noms de jours. On convertit dans les deux sens (norme ISO : lundi = 1).
+const JOURS = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+const jourVersNum = j => { const i = JOURS.indexOf(j); return i === -1 ? null : i + 1; };
+const numVersJour = n => (n>=1 && n<=7) ? JOURS[n-1] : null;
+
 
 // ============================================================
 //  AVATAR
@@ -2446,11 +2454,8 @@ function recapStep(title, fields, getData, extra){
       }).join('');
       return `<div class="recap">${rows}</div>${extra?extra():''}`;
     },
-    after(){ if(extra) bindPhotoInput(); }
   };
 }
-
-function bindPhotoInput(){ /* rien de spécial, l'input est lu à l'enregistrement */ }
 
 // ---- Parcours : mensurations ----
 function buildMensuWizard(){
@@ -2542,23 +2547,16 @@ function buildSuiviWizard(){
   const prevEntry = sorted.length ? sorted[sorted.length-1] : null;
   const data = {};
   SUIVI_FIELDS.forEach(f=> data[f.key] = existing ? existing[f.key] : null);
-  data.creatine = existing ? !!existing.creatine : false;
 
   const steps = SUIVI_FIELDS.map(f=>
     numStep(f, ()=>data[f.key], v=>data[f.key]=v, ()=>prevEntry ? prevEntry[f.key] : null)
   );
-  steps.push({
-    title:'Créatine',
-    render(){
-      return `<label class="wiz-check">
-        <input type="checkbox" id="wiz-creatine" class="goal-check" ${data.creatine?'checked':''}>
-        Cure de créatine cette semaine
-      </label>
-      <div class="wiz-hint">Utilisé dans l'onglet Corrélations pour comparer tes semaines avec et sans.</div>`;
-    },
-    collect(){ data.creatine = document.getElementById('wiz-creatine').checked; }
-  });
-  steps.push(recapStep('Récapitulatif', SUIVI_FIELDS, ()=>data));
+  steps.push(recapStep('Récapitulatif', SUIVI_FIELDS, ()=>data, ()=>{
+    if(existing) return '';
+    return estDimanche()
+      ? `<div class="wiz-prev">📅 Bilan du dimanche : +${BONUS_DIMANCHE} XP en plus</div>`
+      : `<div class="wiz-hint">Astuce : faire ton bilan le dimanche rapporte ${BONUS_DIMANCHE} XP de plus.</div>`;
+  }));
 
   return {
     type:'suivi', steps, index:0, data,
@@ -2566,13 +2564,13 @@ function buildSuiviWizard(){
     async finish(){
       let entry = suivi.find(s=>s.weekKey===wk);
       if(entry){
+        // Modification : on ne retouche ni la date ni le bonus déjà acquis,
+        // sinon il suffirait de rouvrir le formulaire un dimanche pour l'obtenir.
         SUIVI_FIELDS.forEach(f=> entry[f.key] = data[f.key]);
-        entry.creatine = data.creatine;
-        entry.date = todayStr();
       } else {
         suivi.push({id: crypto.randomUUID(), date: todayStr(), weekKey: wk,
                     poids:data.poids, calories:data.calories, taille:data.taille,
-                    creatine:data.creatine, note:null});
+                    bonusDimanche: estDimanche(), note:null});
       }
       await save('suivi', suivi);
       renderSuiviRecap(); renderSuiviHistory(); renderSuiviChart();
@@ -2830,7 +2828,7 @@ function renderSuiviRecap(){
   if(!el || !btn) return;
   if(entry){
     el.innerHTML = recapHTML(SUIVI_FIELDS, entry) +
-      (entry.creatine ? `<div class="wiz-prev">💊 Cure de créatine cette semaine</div>` : '');
+      (entry.bonusDimanche ? `<div class="wiz-prev">📅 Bilan fait le dimanche — bonus obtenu</div>` : '');
     btn.textContent = 'Modifier mon suivi';
   } else {
     el.innerHTML = `<p class="recap-empty">Aucun suivi enregistré pour cette semaine.</p>`;
@@ -3099,11 +3097,9 @@ async function confirmDeleteAccount(){
     if(error) throw error;
 
     await db.auth.signOut();
-    document.body.innerHTML =
-      '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;' +
-      'font-family:Inter,sans-serif;color:#8D9096;text-align:center;padding:24px;line-height:1.6;">' +
-      'Ton compte a été supprimé.<br>Merci d\'avoir utilisé FONTE.</div>';
-    setTimeout(()=>window.location.reload(), 3000);
+    showToast('Compte supprime');
+    // On recharge sur l'ecran de connexion, sans le fragment d'URL
+    window.location.replace(window.location.pathname);
 
   }catch(e){
     console.error('Suppression du compte impossible', e);
@@ -3204,7 +3200,7 @@ async function syncSuivi(){
     suivi.map(s=>({
       id: s.id, user_id: uid(), date: s.date, week_key: s.weekKey,
       calories: s.calories ?? null, poids: s.poids ?? null, taille: s.taille ?? null,
-      creatine: !!s.creatine, note: s.note ?? null
+      bonus_dimanche: !!s.bonusDimanche, note: s.note ?? null
     }))
   ));
 }
@@ -3248,7 +3244,7 @@ async function syncObjectifs(){
 async function syncReminder(){
   check(await db.from('reminder_settings').upsert({
     user_id: uid(),
-    day: reminderSettings.day ?? null,
+    day: jourVersNum(reminderSettings.day),
     dismissed_week: reminderDismissedWeek ?? null
   }));
 }
@@ -3327,10 +3323,11 @@ function goalProgressHTML(baseline, current, goal, unit){
 }
 
 // ---- Rappel hebdomadaire programmé ----
-function saveReminderSettings(){
-  reminderSettings = {day: document.getElementById('reminder-day-select').value || null};
-  save('reminderSettings', reminderSettings);
-  showToast('Rappel enregistré ✓');
+async function saveReminderSettings(){
+  const raw = document.getElementById('reminder-day-select').value;
+  reminderSettings = {day: raw === '' ? null : raw};
+  const ok = await save('reminderSettings', reminderSettings);
+  if(ok) showToast(reminderSettings.day === null ? 'Rappel desactive' : 'Rappel enregistre');
 }
 
 function checkWeeklyReminder(){
@@ -3580,7 +3577,6 @@ function computeWeeklyVolumeMap(){
 function buildCorrelationRows(){
   const volMap = computeWeeklyVolumeMap();
   const weeksAll = [...new Set([...suivi.map(s=>s.weekKey), ...Object.keys(volMap)])].sort();
-  const creatineSet = new Set(suivi.filter(s=>s.creatine).map(s=>s.weekKey));
   return weeksAll.map(wk=>{
     const s = suivi.find(x=>x.weekKey===wk);
     return {
@@ -3588,7 +3584,6 @@ function buildCorrelationRows(){
       poids: s ? s.poids : null,
       calories: s ? s.calories : null,
       volume: volMap[wk] ?? null,
-      creatine: creatineSet.has(wk)
     };
   });
 }
@@ -3625,12 +3620,7 @@ function drawDualChart(holderId, rows, fieldA, fieldB, labelA, labelB){
     return d;
   }
 
-  let bands = '';
-  rows.forEach((r,i)=>{
-    if(r.creatine){
-      bands += `<rect x="${xFor(i)-stepX/2}" y="${padT}" width="${stepX}" height="${h-padT-padB}" fill="rgba(198,255,77,0.08)"></rect>`;
-    }
-  });
+  const bands = '';
 
   const dotsA = yA.map((y,i)=> y==null?'':`<circle cx="${xFor(i)}" cy="${y}" r="3" fill="var(--accent)"></circle>`).join('');
   const dotsB = yB.map((y,i)=> y==null?'':`<circle cx="${xFor(i)}" cy="${y}" r="3" fill="var(--accent-2)"></circle>`).join('');
@@ -3657,26 +3647,11 @@ function renderCorrelations(){
     ['corr-calories-volume','corr-poids-volume'].forEach(id=>{
       document.getElementById(id).innerHTML = '<p class="empty">Ajoute quelques semaines de suivi et de séances pour voir apparaître des tendances ici.</p>';
     });
-    document.getElementById('creatine-insight').innerHTML = '<p class="empty">Pas encore assez de données.</p>';
     return;
   }
   drawDualChart('corr-calories-volume', rows, 'calories', 'volume', 'Calories', 'Volume soulevé');
   drawDualChart('corr-poids-volume', rows, 'poids', 'volume', 'Poids', 'Volume soulevé');
 
-  const withCreat = rows.filter(r=>r.creatine && r.volume!=null).map(r=>r.volume);
-  const withoutCreat = rows.filter(r=>!r.creatine && r.volume!=null).map(r=>r.volume);
-  const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
-  const avgWith = avg(withCreat), avgWithout = avg(withoutCreat);
-  const el = document.getElementById('creatine-insight');
-  if(avgWith!=null && avgWithout!=null){
-    const diff = avgWith-avgWithout;
-    el.innerHTML = `
-      <div class="stat-row"><span>Volume moyen — semaines avec créatine (${withCreat.length})</span><span class="val" style="font-size:17px;">${avgWith} kg</span></div>
-      <div class="stat-row"><span>Volume moyen — semaines sans créatine (${withoutCreat.length})</span><span class="val" style="font-size:17px;">${avgWithout} kg</span></div>
-      <p style="font-family:var(--font-mono);font-size:12.5px;color:${diff>=0?'var(--accent-2)':'var(--accent)'};margin-top:12px;">${diff>=0?'+':''}${diff} kg de volume en moyenne pendant les semaines de créatine. Corrélation, pas forcément causalité — d'autres facteurs (programme, sommeil...) jouent aussi.</p>`;
-  } else {
-    el.innerHTML = '<p class="empty">Coche "Cure de créatine" sur quelques semaines avec et sans pour voir la comparaison ici.</p>';
-  }
 }
 
 // ---- ACCUEIL ----
@@ -3865,7 +3840,7 @@ function mergeImportedData(data){
       mensurations.push({
         id: crypto.randomUUID(), date: imp.date||todayStr(), weekKey: imp.weekKey,
         pec: imp.pec??null, bras: imp.bras??null, epaule: imp.epaule??null, jambe: imp.jambe??null, taille: imp.taille??null,
-        note: imp.note??null, hasPhoto:false,
+        bonusDimanche: !!imp.bonusDimanche, note: imp.note??null, hasPhoto:false,
       });
     }
   });
@@ -3893,7 +3868,7 @@ function mergeImportedData(data){
     suivi.push({
       id: crypto.randomUUID(), date: imp.date||todayStr(), weekKey: imp.weekKey,
       calories: imp.calories??null, poids: imp.poids??null, taille: imp.taille??null,
-      creatine: !!imp.creatine, note: imp.note??null,
+      bonusDimanche: !!imp.bonusDimanche, note: imp.note??null,
     });
   });
 
@@ -4076,6 +4051,7 @@ function computeXPBreakdown(){
     records,
     mensurations: mensurations.length * 8,
     suiviHebdo:   new Set(suivi.map(s=>s.weekKey)).size * 8,
+    bonusDimanche: suivi.filter(s=>s.bonusDimanche).length * BONUS_DIMANCHE,
     combo
   };
 }
@@ -4087,6 +4063,7 @@ const XP_LABELS = {
   records:      'Nouveau record 🏆',
   mensurations: 'Mensurations relevées',
   suiviHebdo:   'Suivi hebdo complété',
+  bonusDimanche: 'Bilan du dimanche 📅',
   combo:        'Semaine complète 🎯'
 };
 
@@ -4146,7 +4123,8 @@ function computeTotalXP(){
   });
 
   xp += mensurations.length*8;
-  xp += new Set(suivi.map(s=>s.weekKey)).size * 8; // une seule fois par semaine, même si plusieurs entrées existent
+  xp += new Set(suivi.map(s=>s.weekKey)).size * 8;
+  xp += suivi.filter(s=>s.bonusDimanche).length * BONUS_DIMANCHE; // une seule fois par semaine, même si plusieurs entrées existent
 
   const weeksM = new Set(mensurations.map(m=>m.weekKey));
   const weeksP = new Set(performances.map(p=>p.weekKey));
@@ -4427,7 +4405,7 @@ function generatePDF(){
       doc.autoTable({
         startY: y,
         head: [['Semaine','Date','Calories','Poids (kg)','Taille (cm)','Créatine']],
-        body: weeks.map(s=>[weekLabel(s.weekKey), s.date, s.calories??'—', s.poids??'—', s.taille??'—', s.creatine?'Oui':'—']),
+        body: weeks.map(s=>[weekLabel(s.weekKey), s.date, s.calories??'—', s.poids??'—', s.taille??'—']),
         styles:{fontSize:8}, headStyles:{fillColor:accent}, margin:{left:20,right:20},
       });
       y = doc.lastAutoTable.finalY + 12;
@@ -4654,26 +4632,6 @@ function renderPerfWeekView(){
 }
 
 // ---- Suivi hebdo ----
-function addSuivi(){
-  const date = document.getElementById('suivi-date').value || todayStr();
-  const noteVal = document.getElementById('suivi-note').value.trim();
-  const entry = {
-    id: crypto.randomUUID(), date, weekKey: isoWeekKey(new Date(date)),
-    calories: parseFloat(document.getElementById('suivi-calories').value)||null,
-    poids: parseFloat(document.getElementById('suivi-poids').value)||null,
-    taille: parseFloat(document.getElementById('suivi-taille').value)||null,
-    creatine: document.getElementById('suivi-creatine').checked,
-    note: noteVal || null,
-  };
-  suivi.push(entry);
-  save('suivi', suivi);
-  ['suivi-calories','suivi-poids','suivi-taille','suivi-note'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('suivi-creatine').checked = false;
-  document.getElementById('suivi-note-row').style.display='none';
-  renderSuiviHistory(); renderSuiviChart(); renderHome();
-  showToast('Semaine enregistrée ✓');
-}
-
 function deleteSuivi(id){
   suivi = suivi.filter(s=>s.id!==id);
   save('suivi', suivi);
@@ -4686,7 +4644,7 @@ function renderSuiviHistory(){
   const weeks = sortByWeek(suivi).slice().reverse();
   let rows = weeks.map(s=>`
     <tr>
-      <td><span class="sem-badge">${weekShort(s.weekKey)}</span>${s.date}${s.creatine?' 💊':''}${s.note?` <button class="note-icon" onclick="showNote(getSuiviNote('${s.id}'))" title="Voir la note">📝</button>`:''}</td>
+      <td><span class="sem-badge">${weekShort(s.weekKey)}</span>${s.date}${s.note?` <button class="note-icon" onclick="showNote(getSuiviNote('${s.id}'))" title="Voir la note">📝</button>`:''}</td>
       <td>${s.calories ?? '—'}</td><td>${s.poids ?? '—'}</td><td>${s.taille ?? '—'}</td>
       <td><button class="del-btn" onclick="deleteSuivi('${s.id}')">✕</button></td>
     </tr>`).join('');
