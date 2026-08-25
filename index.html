@@ -1056,6 +1056,29 @@ nav.tabs button.active .tab-badge{background:var(--accent);color:#fff;}
   .profil-action button{width:100%;}
 }
 
+.enc-list{display:flex;flex-direction:column;gap:12px;}
+.enc-row{display:flex;align-items:center;gap:12px;}
+.enc-signe{font-size:26px;line-height:1;flex-shrink:0;}
+.enc-texte{font-size:14px;color:var(--ink-soft);line-height:1.4;}
+.enc-texte strong{color:var(--ink);}
+
+.enc-picker{display:flex;gap:8px;flex-wrap:wrap;}
+.enc-btn{
+  width:44px;height:44px;border-radius:50%;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  font-size:21px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .15s ease, background .15s ease;
+}
+.enc-btn:hover{background:var(--glass-tint-strong);border-color:var(--accent-2);}
+.enc-btn.choisi{
+  border-color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.15);
+  box-shadow:0 0 0 2px rgba(var(--accent-2-rgb),0.25);
+}
+.enc-envoye{
+  font-family:var(--font-mono);font-size:11.5px;color:var(--accent-2);margin-top:10px;
+}
+
 /* ---- Partage de profil ---- */
 .profile-share{
   display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
@@ -1257,6 +1280,7 @@ table tr{border-color:var(--glass-tint-strong);}
     </section>
     <div class="card" id="next-milestone" style="display:none;"></div>
     <div class="card" id="suggested-seance" style="display:none;"></div>
+    <div class="card" id="encouragements-recus" style="display:none;"></div>
     <div class="card" id="amis-activity" style="display:none;"></div>
     <div id="home-reminder"></div>
     <div class="card" id="monthly-summary"></div>
@@ -1347,14 +1371,16 @@ table tr{border-color:var(--glass-tint-strong);}
       </div>
 
       <div class="card">
-        <h2>Séance du jour <button class="help-btn" onclick="toggleHelp('help-seance')" aria-label="Aide">i</button></h2>
+        <h2>Mes séances <button class="help-btn" onclick="toggleHelp('help-seance')" aria-label="Aide">i</button></h2>
         <div class="card-body">
-          <p class="block-intro">Enregistre les exercices travaillés aujourd'hui, avec le poids et les répétitions de chaque série.</p>
+          <p class="block-intro">Enregistre les exercices travaillés, avec le poids et les répétitions de chaque série. Saisie possible sur les 3 derniers jours.</p>
           <div class="help-box" id="help-seance">
             <strong>Une seule séance par jour</strong><br>
-            Le carnet n'accepte qu'une séance quotidienne : tu peux la modifier autant que tu veux dans la journée,
-            mais pas en créer une seconde. Cette limite garantit que l'XP récompense la régularité réelle
-            et non la saisie répétée. Supprimer la séance du jour annule l'XP et les records qu'elle avait rapportés.
+            Tu peux enregistrer une séance sur les trois derniers jours — oublier de la saisir le soir même
+            ne doit pas te coûter ta semaine. En revanche, une seule séance par journée : tu peux la modifier
+            autant que tu veux, mais pas en créer une seconde. C'est cette limite qui garantit que l'XP
+            récompense la régularité réelle et non la saisie répétée.
+            Supprimer une séance annule l'XP et les records qu'elle avait rapportés.
           </div>
           <div class="info-line" id="perf-week-info"></div>
           <div id="seance-recap"></div>
@@ -1638,7 +1664,6 @@ table tr{border-color:var(--glass-tint-strong);}
     <div class="footer-actions">
       <button class="ghost" onclick="openExportModal()">💾 Exporter mes données (JSON)</button>
       <button class="ghost" onclick="openImportModal()">📥 Importer des données</button>
-      <button class="ghost" onclick="openShareConfigModal()">🖼️ Partager ma progression</button>
     </div>
     <div class="footer-note">FONTE<span>.</span> — Ton carnet, synchronisé et privé.
       <span class="footer-version" id="footer-version"></span></div>
@@ -1803,28 +1828,7 @@ table tr{border-color:var(--glass-tint-strong);}
   </div>
 </div>
 
-<div id="share-config-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeShareConfigModal()">
-  <div class="modal-card" style="max-width:400px;">
-    <h3>Personnaliser ta carte</h3>
-    <p>Choisis ce que tu veux mettre en avant.</p>
-    <div id="share-options-list" style="display:flex;flex-direction:column;gap:12px;"></div>
-    <div class="modal-actions">
-      <button class="small" onclick="closeShareConfigModal()">Annuler</button>
-      <button class="primary" onclick="generateShareImage()">Générer l'image</button>
-    </div>
-  </div>
-</div>
 
-<div id="share-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeShareModal()">
-  <div class="modal-card" style="max-width:340px;">
-    <h3>Partager ta progression</h3>
-    <img id="share-preview" style="width:100%;border-radius:6px;display:block;">
-    <div class="modal-actions">
-      <button class="small" onclick="closeShareModal()">Fermer</button>
-      <button class="primary" onclick="downloadShareImage()">Télécharger</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ---- Thème (appliqué avant tout rendu pour éviter un flash) ----
@@ -2309,7 +2313,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v1.8.0';
+const APP_VERSION = 'v1.9.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -2326,6 +2330,7 @@ function renderVersionAndWeek(){
 // à l'étranger doit voir son bonus tomber son dimanche à lui.
 function estDimanche(){ return new Date().getDay() === 0; }
 const BONUS_DIMANCHE = 5;
+const JOURS_SAISIE = 3;   // aujourd'hui, hier, avant-hier
 
 // La colonne `day` est un entier en base, alors que le menu manipule
 // des noms de jours. On convertit dans les deux sens (norme ISO : lundi = 1).
@@ -2840,13 +2845,54 @@ function buildSeanceWizard(){
       saveLabel:'Fermer', async finish(){}};
   }
 
-  // Une seule seance par jour : si celle du jour existe, on la modifie.
-  const today = todayStr();
-  const existingSeance = performances.find(p=>p.date===today);
-  const blocks = existingSeance
+  // Saisie possible sur les 3 derniers jours : oublier d'enregistrer
+  // le soir meme ne doit pas coûter une semaine. La limite d'une
+  // seance par jour, elle, reste : c'est elle qui ferme l'exploit.
+  let dateChoisie = todayStr();
+  let existingSeance = performances.find(p=>p.date===dateChoisie);
+  let blocks = existingSeance
     ? existingSeance.exercices.map(b=>({exoId:b.exoId, sets:b.sets.map(x=>({poids:x.poids, reps:x.reps}))}))
     : [];
   let picked = null;
+
+  function joursDisponibles(){
+    const out = [];
+    for(let i=0;i<JOURS_SAISIE;i++){
+      const d = new Date();
+      d.setDate(d.getDate()-i);
+      const iso = d.toISOString().slice(0,10);
+      const nom = i===0 ? "Aujourd'hui"
+                : i===1 ? 'Hier'
+                : d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+      out.push({iso, nom, existe: !!performances.find(p=>p.date===iso)});
+    }
+    return out;
+  }
+
+  const dateStep = {
+    title:'Quel jour ?',
+    render(){
+      return '<div class="wiz-exo-pick">' + joursDisponibles().map(function(j){
+        return '<button class="wiz-exo-opt' + (j.iso===dateChoisie?' chosen':'') + '" data-date="' + j.iso + '">' +
+          '<span>' + j.nom + '</span><small>' + (j.existe ? 'seance deja enregistree - modifier' : 'aucune seance') + '</small>' +
+        '</button>';
+      }).join('') + '</div>' +
+      '<div class="wiz-hint">Une seule seance par jour. Tu peux revenir sur les ' + JOURS_SAISIE + ' derniers jours.</div>';
+    },
+    after(){
+      document.querySelectorAll('.wiz-exo-opt[data-date]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          dateChoisie = btn.dataset.date;
+          existingSeance = performances.find(p=>p.date===dateChoisie);
+          blocks = existingSeance
+            ? existingSeance.exercices.map(b=>({exoId:b.exoId, sets:b.sets.map(x=>({poids:x.poids, reps:x.reps}))}))
+            : [];
+          wiz.index = 1;
+          renderWizStep();
+        });
+      });
+    }
+  };
 
   const pickStep = {
     title:'Choisis un exercice',
@@ -2866,14 +2912,13 @@ function buildSeanceWizard(){
       document.querySelectorAll('.wiz-exo-opt').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           picked = btn.dataset.exo;
-          wiz.index = 1;
+          wiz.index = 2;
           renderWizStep();
         });
       });
     },
     collect(){
       if(!picked && blocks.length===0){ showToast('Choisis un exercice'); return false; }
-      if(!picked){ wiz.index = 1; } // ira au récap via setsStep
     }
   };
 
@@ -2935,22 +2980,23 @@ function buildSeanceWizard(){
   };
 
   return {
-    type:'seance', steps:[pickStep, setsStep, recap], index:0,
-    saveLabel: existingSeance ? 'Mettre a jour la seance' : 'Enregistrer la seance',
+    type:'seance', steps:[dateStep, pickStep, setsStep, recap], index:0,
+    get saveLabel(){ return performances.find(p=>p.date===dateChoisie) ? 'Mettre a jour la seance' : 'Enregistrer la seance'; },
     get blocks(){ return blocks; },
     async finish(){
-      if(existingSeance){
-        existingSeance.exercices = blocks;
+      const dejaLa = performances.find(p=>p.date===dateChoisie);
+      if(dejaLa){
+        dejaLa.exercices = blocks;
       } else {
         performances.push({
-          id: crypto.randomUUID(), weekKey: isoWeekKey(new Date()), date: today,
-          note: null, exercices: blocks
+          id: crypto.randomUUID(), weekKey: isoWeekKey(new Date(dateChoisie)),
+          date: dateChoisie, note: null, exercices: blocks
         });
       }
       await save('performances', performances);
       renderSeanceRecap(); renderPerfHistory(); renderPerfWeekSelect();
       renderPerfChart(); renderHome();
-      showToast(existingSeance ? 'Seance mise a jour' : 'Seance enregistree');
+      showToast('Seance enregistree');
     }
   };
 }
@@ -2974,7 +3020,7 @@ function wizAddSet(){
 
 function wizBackToPick(){
   if(!wiz) return;
-  wiz.index = 0;
+  wiz.index = 1;
   renderWizStep();
 }
 
@@ -3069,7 +3115,7 @@ function renderSeanceRecap(){
     el.innerHTML = '<p class="recap-empty">Aucune seance enregistree cette semaine.</p>';
   }
 
-  btn.textContent = todaySeance ? 'Modifier la seance du jour' : 'Ajouter la seance du jour';
+  btn.textContent = todaySeance ? 'Modifier / ajouter une seance' : 'Ajouter une seance';
 }
 
 // Supprimer une seance annule l'XP et les records qu'elle avait rapportes,
@@ -3329,6 +3375,12 @@ async function openProfile(cle, parPseudo){
           '<p class="recap-empty">Cette personne ne partage pas ses seances.</p></div>';
       }
 
+      if(d.relation === 'ami'){
+        html += '<div class="card"><h2>Encourager</h2>' +
+          '<p class="block-intro">Un signe pour lui dire que tu suis sa progression. Un par ami et par semaine.</p>' +
+          pickerEncouragement(d.id) + '</div>';
+      }
+
       const recs = d.records || [];
       html += '<div class="card"><h2>Records personnels</h2>' +
         (recs.length
@@ -3377,6 +3429,68 @@ function checkProfileLink(){
 }
 
 // ============================================================
+//  ENCOURAGEMENTS
+// ============================================================
+// Pas de texte libre : un signe parmi quatre. Le geste social
+// existe, sans les risques d'une messagerie (harcelement,
+// moderation, blocage) qu'on ne pourrait pas assumer.
+const SIGNES = ['\u{1F4AA}','\u{1F525}','\u{1F44F}','\u{1F680}'];
+let encData = {recus:[], envoyes:{}};
+
+async function chargerEncouragements(){
+  try{
+    const res = await db.rpc('mes_encouragements');
+    if(res.error) throw res.error;
+    encData = res.data || {recus:[], envoyes:{}};
+  }catch(e){ console.error('Encouragements indisponibles', e); return; }
+  renderEncouragements();
+}
+
+function renderEncouragements(){
+  const el = document.getElementById('encouragements-recus');
+  if(!el) return;
+  const recus = encData.recus || [];
+  if(!recus.length){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<h2>Encouragements de la semaine</h2><div class="enc-list">' +
+    recus.map(function(r){
+      return '<div class="enc-row">' +
+        '<span class="enc-signe">' + r.signe + '</span>' +
+        '<span class="enc-texte"><strong>' + String(r.pseudo).replace(/</g,'&lt;') +
+        '</strong> t\'encourage cette semaine.</span></div>';
+    }).join('') + '</div>';
+}
+
+async function encourager(id, signe){
+  try{
+    const res = await db.rpc('encourager', {target: id, signe: signe});
+    if(res.error) throw res.error;
+    encData.envoyes[id] = signe;
+    showToast('Encouragement envoye ' + signe);
+    majPickerEnc(id);
+  }catch(e){ showToast(e.message || 'Envoi impossible'); }
+}
+
+function majPickerEnc(id){
+  const envoye = (encData.envoyes || {})[id];
+  document.querySelectorAll('.enc-btn[data-cible="' + id + '"]').forEach(function(b){
+    b.classList.toggle('choisi', b.dataset.signe === envoye);
+  });
+  const info = document.getElementById('enc-envoye-' + id);
+  if(info) info.textContent = envoye ? 'Tu l\'as encourage cette semaine ' + envoye : '';
+}
+
+function pickerEncouragement(id){
+  const envoye = (encData.envoyes || {})[id];
+  return '<div class="enc-picker">' + SIGNES.map(function(sg){
+    return '<button class="enc-btn' + (sg===envoye?' choisi':'') + '" data-cible="' + id +
+      '" data-signe="' + sg + '" onclick="encourager(\'' + id + '\',\'' + sg + '\')">' + sg + '</button>';
+  }).join('') + '</div>' +
+  '<div class="enc-envoye" id="enc-envoye-' + id + '">' +
+    (envoye ? 'Tu l\'as encourage cette semaine ' + envoye : '') + '</div>';
+}
+
+// ============================================================
 //  AMIS
 // ============================================================
 let amisData = {amis:[], attente:[], envoyes:[], actifs_semaine:0};
@@ -3393,6 +3507,7 @@ async function chargerAmis(){
   renderAmis();
   renderAmisBadge();
   renderAmisActivity();
+  chargerEncouragements();
 }
 
 function renderAmisBadge(){
@@ -4197,7 +4312,7 @@ function startSuggestedSeance(){
     const block = last.exercices.find(b=>b.exoId===exoId);
     wiz.blocks.push({exoId, sets: block.sets.map(s=>({poids:s.poids, reps:s.reps}))});
   });
-  wiz.index = 2; // directement au récapitulatif
+  wiz.index = 3; // directement au récapitulatif
   renderWizStep();
   showToast('Séance reprise — ajuste tes charges 💪');
 }
@@ -4735,173 +4850,12 @@ function isGoalReached(baseline, current, goal){
   return pct>=99.5;
 }
 
-let shareImageDataURL = null;
 
 function shareOptionRow(id, label, checkedDefault){
   return `<label style="display:flex;align-items:center;gap:8px;font-family:var(--font-body);font-size:13.5px;color:var(--ink);cursor:pointer;">
     <input type="checkbox" class="goal-check" id="${id}" ${checkedDefault?'checked':''}>${label}
   </label>`;
 }
-
-function openShareConfigModal(){
-  const el = document.getElementById('share-options-list');
-  const hasPoids = suivi.some(s=>s.poids!=null);
-  const monthly = computeMonthlySummary();
-  let html = '';
-  html += shareOptionRow('opt-streak', '🔥 Streak actuel', true);
-  html += shareOptionRow('opt-weeks', '📆 Semaines suivies (total)', true);
-  html += shareOptionRow('opt-poids', '⚖️ Poids actuel', hasPoids);
-  html += shareOptionRow('opt-monthly', '📊 Résumé du mois', monthly.length>0);
-  if(exercices.length>0){
-    html += shareOptionRow('opt-record', '🏆 Un record personnel', true);
-    html += `<select id="opt-record-exo" style="margin-left:26px;">${exercices.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select>`;
-  }
-  el.innerHTML = html;
-  document.getElementById('share-config-modal').style.display = 'flex';
-}
-
-function closeShareConfigModal(){ document.getElementById('share-config-modal').style.display='none'; }
-
-async function generateShareImage(){
-  closeShareConfigModal();
-  try{
-    try{
-      await document.fonts.load('400 90px "Bebas Neue"');
-      await document.fonts.load('400 30px "IBM Plex Mono"');
-      await document.fonts.load('600 30px Inter');
-    }catch(e){}
-
-    const W=1080, H=1350, M=90;
-    const canvas = document.createElement('canvas');
-    canvas.width=W; canvas.height=H;
-    const ctx = canvas.getContext('2d');
-
-    // --- Fond : degrade sombre + deux halos ---
-    const bg = ctx.createLinearGradient(0,0,W,H);
-    bg.addColorStop(0,'#131519'); bg.addColorStop(1,'#0B0C0E');
-    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-    let g = ctx.createRadialGradient(W*0.12,H*0.05,40,W*0.12,H*0.05,760);
-    g.addColorStop(0,'rgba(255,75,43,0.30)'); g.addColorStop(1,'rgba(255,75,43,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    g = ctx.createRadialGradient(W*0.95,H*0.42,40,W*0.95,H*0.42,700);
-    g.addColorStop(0,'rgba(76,201,240,0.20)'); g.addColorStop(1,'rgba(76,201,240,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-
-    // --- Utilitaires ---
-    function carte(x,y,w,h,r){
-      ctx.save();
-      ctx.beginPath();
-      if(ctx.roundRect) ctx.roundRect(x,y,w,h,r);
-      else ctx.rect(x,y,w,h);
-      ctx.fillStyle='rgba(255,255,255,0.045)'; ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1.5; ctx.stroke();
-      ctx.restore();
-    }
-    function mono(t,x,y,size,color,align){
-      ctx.fillStyle=color; ctx.textAlign=align||'left';
-      ctx.font='400 '+size+'px "IBM Plex Mono", monospace';
-      ctx.fillText(t,x,y); ctx.textAlign='left';
-    }
-    function display(t,x,y,size,color,align){
-      ctx.fillStyle=color; ctx.textAlign=align||'left';
-      ctx.font='400 '+size+'px "Bebas Neue", sans-serif';
-      ctx.fillText(t,x,y); ctx.textAlign='left';
-    }
-    function inter(t,x,y,size,color,weight,align){
-      ctx.fillStyle=color; ctx.textAlign=align||'left';
-      ctx.font=(weight||'600')+' '+size+'px Inter, sans-serif';
-      ctx.fillText(t,x,y); ctx.textAlign='left';
-    }
-
-    const stats = computeHomeStats();
-    const info  = computeLevelInfo(computeTotalXP());
-
-    // --- En-tete ---
-    display('FONTE', M, 108, 52, '#F4F3EE');
-    ctx.font='400 52px "Bebas Neue", sans-serif';
-    display('.', M + ctx.measureText('FONTE').width, 108, 52, '#FF4B2B');
-    mono('SEMAINE ' + weekLabel(isoWeekKey(new Date())).toUpperCase(), W-M, 104, 24, '#8D9096', 'right');
-
-    // --- Bloc identite ---
-    carte(M, 150, W-M*2, 230, 32);
-    ctx.font='72px sans-serif'; ctx.fillText(avatar, M+44, 268);
-    display((pseudo||'Anonyme').toUpperCase(), M+150, 262, 82, '#F4F3EE');
-    mono('NIVEAU ' + info.level + '  \u00B7  ' + rankName(info.level).toUpperCase(), M+150, 306, 26, '#4CC9F0');
-
-    // Barre de progression
-    const bx=M+44, by=336, bw=W-M*2-88, bh=12;
-    ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
-    ctx.fillStyle='rgba(255,255,255,0.10)'; ctx.fill();
-    const fw = Math.max(8, bw * (info.progress||0));
-    const lg = ctx.createLinearGradient(bx,0,bx+fw,0);
-    lg.addColorStop(0,'#FF4B2B'); lg.addColorStop(1,'#FF8A63');
-    ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(bx,by,fw,bh,6); else ctx.rect(bx,by,fw,bh);
-    ctx.fillStyle=lg; ctx.fill();
-
-    // --- Quatre statistiques ---
-    const cells = [
-      [stats.weeks,  'SEMAINES SUIVIES'],
-      [stats.exos,   'EXERCICES SUIVIS'],
-      [stats.volume, 'KG CETTE SEMAINE'],
-      [stats.streak, "SEMAINES D'AFFILEE"]
-    ];
-    const cw=(W-M*2-24)/2, ch=150;
-    cells.forEach(function(c,i){
-      const x = M + (i%2)*(cw+24);
-      const y = 412 + Math.floor(i/2)*(ch+24);
-      carte(x,y,cw,ch,26);
-      display(String(c[0]), x+36, y+92, 76, '#FF4B2B');
-      mono(c[1], x+36, y+124, 21, '#8D9096');
-    });
-
-    // --- Records ---
-    const recs = exercices.map(function(e){
-      const entries = getExoEntries(e.id);
-      if(!entries.length) return null;
-      let mx=0; entries.forEach(function(en){ en.sets.forEach(function(st){ if(st.poids>mx) mx=st.poids; }); });
-      return {name:e.name, poids:mx};
-    }).filter(Boolean).sort(function(a,b){return b.poids-a.poids;}).slice(0,4);
-
-    let y = 412 + 2*(ch+24) + 12;
-    if(recs.length){
-      carte(M, y, W-M*2, 76 + recs.length*66, 30);
-      mono('RECORDS PERSONNELS', M+36, y+50, 22, '#8D9096');
-      let ry = y + 108;
-      recs.forEach(function(r){
-        inter(r.name.length>24 ? r.name.slice(0,24)+'\u2026' : r.name, M+36, ry, 30, '#F4F3EE');
-        display(r.poids + ' KG', W-M-36, ry+6, 46, '#4CC9F0', 'right');
-        ry += 66;
-      });
-      y += 76 + recs.length*66 + 24;
-    }
-
-    // --- Pied de page ---
-    mono('MON CARNET DE PERFORMANCE', M, H-96, 24, '#8D9096');
-    mono(APP_VERSION, W-M, H-96, 20, 'rgba(141,144,150,0.6)', 'right');
-    ctx.beginPath(); ctx.moveTo(M,H-140); ctx.lineTo(W-M,H-140);
-    ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1.5; ctx.stroke();
-
-    shareImageDataURL = canvas.toDataURL('image/png');
-    document.getElementById('share-preview').src = shareImageDataURL;
-    document.getElementById('share-modal').style.display = 'flex';
-  }catch(e){
-    console.error(e);
-    showToast('Generation de l\'image impossible');
-  }
-}
-
-function closeShareModal(){ document.getElementById('share-modal').style.display='none'; }
-
-function downloadShareImage(){
-  if(!shareImageDataURL) return;
-  const a = document.createElement('a');
-  a.href = shareImageDataURL; a.download = `fonte-bilan-${currentMonthKey()}.png`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  showToast('Image téléchargée ✓');
-}
-
 
 function deleteMensuration(id){
   mensurations = mensurations.filter(m=>m.id!==id);
