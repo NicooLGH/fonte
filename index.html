@@ -1133,6 +1133,57 @@ body.offline .topbar{top:60px;}
   padding:6px 12px;border-radius:999px;background:var(--glass-tint);
 }
 
+.ami-grid{display:flex;gap:12px;flex-wrap:wrap;}
+.ami-carte{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 18px;min-width:104px;cursor:pointer;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+  border-radius:20px;transition:border-color .15s ease, background .15s ease;
+}
+.ami-carte:hover{background:var(--glass-tint-strong);border-color:rgba(var(--accent-2-rgb),0.5);}
+.ami-carte-avatar{font-size:28px;line-height:1;}
+.ami-carte-nom{
+  font-family:var(--font-body);font-weight:600;font-size:13.5px;color:var(--ink);
+  max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ami-carte-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--accent-2);}
+.ami-inactifs{
+  font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);
+  margin-top:16px;padding-top:14px;border-top:1px solid var(--hairline);
+}
+.ami-lien{
+  background:none;border:none;padding:0;cursor:pointer;
+  font-family:inherit;font-size:inherit;color:var(--ink-soft);
+  text-decoration:underline;text-underline-offset:3px;
+}
+.ami-lien:hover{color:var(--ink);}
+
+/* ---- Detail des seances partagees ---- */
+.seance-detail{margin-top:12px;}
+.seance-exo{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding:9px 0;border-bottom:1px solid var(--hairline);
+}
+.seance-exo:last-child{border-bottom:none;}
+.seance-exo-nom{
+  font-family:var(--font-body);font-weight:600;font-size:13.5px;color:var(--ink);
+}
+.seance-exo-series{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.seance-exo-series .set-chip{
+  display:inline-block;font-family:var(--font-mono);font-size:11.5px;
+  background:var(--glass-tint-strong);border:1px solid var(--glass-border);
+  border-radius:8px;padding:3px 9px;color:var(--ink);
+}
+.seance-exo-vol{
+  font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);
+  white-space:nowrap;flex-shrink:0;
+}
+.seance-toggle{
+  background:none;border:none;cursor:pointer;padding:6px 0;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--accent-2);
+  text-decoration:underline;text-underline-offset:3px;
+}
+
 /* ---- Partage de profil ---- */
 .profile-share{
   display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
@@ -2368,7 +2419,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v2.1.0';
+const APP_VERSION = 'v2.2.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -3540,7 +3591,6 @@ async function openProfile(cle, parPseudo){
 const REACTIONS = ['\u{1F4AA}','\u{1F525}','\u{1F44F}','\u{1F680}','\u{1F62E}'];
 
 function blocSeance(se, peutReagir){
-  const noms = (se.exercices||[]).join(', ');
   const compte = se.reactions || {};
   const totaux = Object.keys(compte).map(function(sg){
     return '<span class="reac-compte">' + sg + ' ' + compte[sg] + '</span>';
@@ -3550,25 +3600,57 @@ function blocSeance(se, peutReagir){
   if(peutReagir){
     boutons = REACTIONS.map(function(sg){
       return '<button class="reac-btn' + (se.ma_reaction===sg?' choisi':'') + '" ' +
-        'data-seance="' + se.id + '" data-signe="' + sg + '" ' +
-        'onclick="reagirSeance(\'' + se.id + '\',\'' + sg + '\')" ' +
-        'title="Reagir">' + sg + '</button>';
+        'onclick="reagirSeance(\'' + se.id + '\',\'' + sg + '\')" title="Reagir">' + sg + '</button>';
     }).join('');
     if(se.ma_reaction){
       boutons += '<button class="reac-btn" onclick="retirerReaction(\'' + se.id + '\')" title="Retirer ma reaction">\u2715</button>';
     }
   }
 
+  // Detail serie par serie, replie par defaut pour ne pas noyer la page
+  const blocs = se.blocs || [];
+  const detailId = 'det-' + se.id;
+  const detail = blocs.length
+    ? '<div class="seance-detail" id="' + detailId + '" style="display:none;">' +
+        blocs.map(function(b){
+          const chips = (b.series||[]).map(function(x){
+            return '<span class="set-chip">' + x.poids + 'kg\u00D7' + x.reps + '</span>';
+          }).join('');
+          return '<div class="seance-exo">' +
+            '<span><span class="seance-exo-nom">' + String(b.nom).replace(/</g,'&lt;') + '</span>' +
+            '<span class="seance-exo-series">' + chips + '</span></span>' +
+            '<span class="seance-exo-vol">' + Math.round(b.volume) + ' kg</span>' +
+          '</div>';
+        }).join('') +
+      '</div>'
+    : '';
+
+  const resume = blocs.length
+    ? blocs.map(function(b){ return b.nom; }).join(', ')
+    : (se.exercices || []).join(', ');
+
   return '<div class="seance-bloc">' +
     '<div class="seance-entete">' +
       '<span class="recap-label">' + se.date +
         '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' +
-        String(noms).replace(/</g,'&lt;') + '</small></span>' +
+        String(resume).replace(/</g,'&lt;') + '</small></span>' +
       '<span class="recap-value">' + Math.round(se.volume) + '<span class="unit">kg vol.</span></span>' +
     '</div>' +
     (se.note ? '<div class="seance-note">\u{1F4DD} ' + String(se.note).replace(/</g,'&lt;') + '</div>' : '') +
+    (blocs.length
+      ? '<button class="seance-toggle" onclick="basculerDetail(\'' + detailId + '\', this)">Voir le detail des series</button>'
+      : '') +
+    detail +
     ((totaux || boutons) ? '<div class="reac-row">' + totaux + boutons + '</div>' : '') +
   '</div>';
+}
+
+function basculerDetail(id, btn){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const ouvert = el.style.display !== 'none';
+  el.style.display = ouvert ? 'none' : 'block';
+  btn.textContent = ouvert ? 'Voir le detail des series' : 'Masquer le detail';
 }
 
 async function reagirSeance(seanceId, signe){
@@ -3790,27 +3872,50 @@ function renderAmis(){
   }
 }
 
-// Bandeau d'activite sur l'accueil
+// Activite des amis sur l'accueil : qui s'est entraine, nommement.
+// Un decompte anonyme n'apprend rien ; savoir QUI donne envie
+// d'aller voir sa seance.
 function renderAmisActivity(){
   const el = document.getElementById('amis-activity');
   if(!el) return;
-  const total = (amisData.amis||[]).length;
-  if(total === 0){ el.style.display = 'none'; return; }
-  const n = amisData.actifs_semaine || 0;
-  let texte;
-  if(n === 0){
-    texte = "<strong>Personne n'a encore bouge cette semaine</strong> parmi tes amis. A toi d'ouvrir le bal.";
-  } else if(n === total){
-    texte = '<strong>Tous tes amis</strong> se sont entraines cette semaine.';
-  } else {
-    texte = n > 1
-      ? '<strong>' + n + ' de tes ' + total + ' amis</strong> se sont entraines cette semaine.'
-      : '<strong>1 de tes ' + total + ' amis</strong> s\'est entraine cette semaine.';
-  }
+  const tous = amisData.amis || [];
+  if(tous.length === 0){ el.style.display = 'none'; return; }
+
+  const actifs = tous.filter(function(a){ return a.actif_semaine; });
+  const inactifs = tous.filter(function(a){ return !a.actif_semaine; });
   el.style.display = 'block';
-  el.innerHTML = '<div class="amis-banner">' +
-    '<span class="amis-banner-num">' + n + '</span>' +
-    '<span class="amis-banner-text">' + texte + '</span></div>';
+
+  let html = '<h2>Tes amis cette semaine</h2>';
+
+  if(actifs.length === 0){
+    html += '<p class="recap-empty">Personne n\'a encore bouge cette semaine. A toi d\'ouvrir le bal.</p>';
+  } else {
+    html += '<p class="block-intro">' +
+      (actifs.length === tous.length
+        ? '<strong>Tout le monde</strong> s\'est entraine cette semaine.'
+        : '<strong>' + actifs.length + ' sur ' + tous.length + '</strong> se ' +
+          (actifs.length > 1 ? 'sont entraines' : 'est entraine') + ' cette semaine.') +
+      '</p>';
+    html += '<div class="ami-grid">' + actifs.map(function(a){
+      const st = a.streak || 0;
+      return '<button class="ami-carte" onclick="openProfile(\'' + a.id + '\')">' +
+        '<span class="ami-carte-avatar">' + (a.avatar || '&#128170;') + '</span>' +
+        '<span class="ami-carte-nom">' + String(a.pseudo).replace(/</g,'&lt;') + '</span>' +
+        '<span class="ami-carte-meta">' +
+          (st > 0 ? '&#128293; ' + st + ' sem.' : 'actif cette semaine') + '</span>' +
+      '</button>';
+    }).join('') + '</div>';
+  }
+
+  if(inactifs.length){
+    html += '<div class="ami-inactifs">Pas encore actifs : ' +
+      inactifs.map(function(a){
+        return '<button class="ami-lien" onclick="openProfile(\'' + a.id + '\')">' +
+          String(a.pseudo).replace(/</g,'&lt;') + '</button>';
+      }).join(', ') + '</div>';
+  }
+
+  el.innerHTML = html;
 }
 
 // ---- Recherche ----
