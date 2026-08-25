@@ -2415,11 +2415,22 @@ async function loadAll(){
   });
 
   safe('lien de profil', checkProfileLink);
+
+  // Boutons Precedent / Suivant du navigateur
+  window.addEventListener('hashchange', function(){
+    const h = window.location.hash;
+    if(/^#\/u\//.test(h) || /^#u=/.test(h)) checkProfileLink();
+    else if(document.getElementById('view-profil').classList.contains('active')){
+      const btn = document.querySelector('nav.tabs button[data-view="' + vueAvantProfil + '"]')
+               || document.querySelector('nav.tabs button[data-view="accueil"]');
+      btn.click();
+    }
+  });
   if(!onboarded) safe('accueil du nouveau compte', startOnboarding);
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v2.2.0';
+const APP_VERSION = 'v2.2.1';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -2601,6 +2612,7 @@ function closeDemo(){ document.getElementById('demo-modal').style.display = 'non
 //  RÉGLAGES
 // ============================================================
 function openSettings(){
+  nettoyerAdresseProfil();
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-reglages').classList.add('active');
@@ -3495,7 +3507,7 @@ function ouvrirVueProfil(){
 }
 
 function quitterProfil(){
-  history.replaceState(null, '', window.location.pathname);
+  nettoyerAdresseProfil();
   const btn = document.querySelector('nav.tabs button[data-view="' + vueAvantProfil + '"]')
            || document.querySelector('nav.tabs button[data-view="accueil"]');
   btn.click();
@@ -4216,8 +4228,18 @@ function positionNavSlider(){
     nav.scrollTo({left: active.offsetLeft - (nav.clientWidth - active.offsetWidth)/2, behavior:'smooth'});
   }
 }
+// Quitter un profil autrement que par le bouton Retour doit aussi
+// nettoyer l'adresse, sinon actualiser la page rouvre le profil.
+function nettoyerAdresseProfil(){
+  if(/^#\/u\//.test(window.location.hash) || /^#u=/.test(window.location.hash)){
+    history.replaceState(null, '', window.location.pathname);
+  }
+  profilCourant = null;
+}
+
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
+    nettoyerAdresseProfil();
     document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     btn.classList.add('active');
