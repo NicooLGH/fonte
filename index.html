@@ -1101,6 +1101,38 @@ nav.tabs button.active .tab-badge{background:var(--accent);color:#fff;}
 @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.35;}}
 body.offline .topbar{top:60px;}
 
+.wiz-textarea{
+  width:100%;padding:14px 16px;border-radius:14px;resize:vertical;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink);font-family:var(--font-body);font-size:14.5px;line-height:1.5;
+}
+.wiz-textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),0.15);}
+.seance-note{
+  display:block;font-family:var(--font-body);font-style:italic;
+  font-size:12.5px;color:var(--ink-soft);margin-top:5px;line-height:1.45;
+}
+.seance-bloc{
+  padding:14px 0;border-bottom:1px solid var(--hairline);
+}
+.seance-bloc:last-child{border-bottom:none;}
+.seance-entete{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+.reac-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;}
+.reac-btn{
+  width:36px;height:36px;border-radius:50%;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  font-size:17px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.reac-btn:hover{background:var(--glass-tint-strong);border-color:var(--accent-2);}
+.reac-btn.choisi{
+  border-color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.15);
+  box-shadow:0 0 0 2px rgba(var(--accent-2-rgb),0.25);
+}
+.reac-compte{
+  font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);
+  padding:6px 12px;border-radius:999px;background:var(--glass-tint);
+}
+
 /* ---- Partage de profil ---- */
 .profile-share{
   display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
@@ -1302,6 +1334,7 @@ table tr{border-color:var(--glass-tint-strong);}
     </section>
     <div class="card" id="next-milestone" style="display:none;"></div>
     <div class="card" id="suggested-seance" style="display:none;"></div>
+    <div class="card" id="reactions-recues" style="display:none;"></div>
     <div class="card" id="encouragements-recus" style="display:none;"></div>
     <div class="card" id="amis-activity" style="display:none;"></div>
     <div id="home-reminder"></div>
@@ -2335,7 +2368,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v2.0.0';
+const APP_VERSION = 'v2.1.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -2880,6 +2913,7 @@ function buildSeanceWizard(){
     ? existingSeance.exercices.map(b=>({exoId:b.exoId, sets:b.sets.map(x=>({poids:x.poids, reps:x.reps}))}))
     : [];
   let picked = null;
+  let noteSeance = existingSeance ? (existingSeance.note || '') : '';
 
   function joursDisponibles(){
     const out = [];
@@ -2983,6 +3017,27 @@ function buildSeanceWizard(){
     }
   };
 
+  const noteStep = {
+    title:'Une note ?',
+    render(){
+      const valeur = (existingSeance && existingSeance.note) ? existingSeance.note : (noteSeance || '');
+      return '<div class="wiz-field">' +
+        '<label>Note de séance (facultatif)</label>' +
+        '<textarea id="wiz-note" class="wiz-textarea" maxlength="280" rows="4" ' +
+        'placeholder="ex : jambes lourdes mais PR au squat, bonne séance"></textarea>' +
+        '<div class="wiz-hint">Si tu partages tes séances, tes amis verront cette note et pourront y réagir. ' +
+        '280 caractères maximum.</div></div>';
+    },
+    after(){
+      const ta = document.getElementById('wiz-note');
+      if(ta) ta.value = (existingSeance && existingSeance.note) ? existingSeance.note : (noteSeance || '');
+    },
+    collect(){
+      const ta = document.getElementById('wiz-note');
+      noteSeance = ta ? ta.value.trim().slice(0,280) : '';
+    }
+  };
+
   const recap = {
     title:'Récapitulatif',
     render(){
@@ -2997,8 +3052,10 @@ function buildSeanceWizard(){
           <span class="recap-value">${vol}<span class="unit">kg vol.</span></span>
         </div>`;
       }).join('');
-      return `<div class="recap">${rows}</div>
-        <button class="small" onclick="wizBackToPick()">+ Ajouter un autre exercice</button>`;
+      const bloc = noteSeance
+        ? `<div class="wiz-prev" style="margin-top:12px;">📝 ${noteSeance.replace(/</g,'&lt;')}</div>` : '';
+      return `<div class="recap">${rows}</div>${bloc}
+        <button class="small" style="margin-top:12px;" onclick="wizBackToPick()">+ Ajouter un autre exercice</button>`;
     },
     collect(){
       if(blocks.length===0){ showToast('Ajoute au moins un exercice'); return false; }
@@ -3006,17 +3063,18 @@ function buildSeanceWizard(){
   };
 
   return {
-    type:'seance', steps:[dateStep, pickStep, setsStep, recap], index:0,
+    type:'seance', steps:[dateStep, pickStep, setsStep, noteStep, recap], index:0,
     get saveLabel(){ return performances.find(p=>p.date===dateChoisie) ? 'Mettre a jour la seance' : 'Enregistrer la seance'; },
     get blocks(){ return blocks; },
     async finish(){
       const dejaLa = performances.find(p=>p.date===dateChoisie);
       if(dejaLa){
         dejaLa.exercices = blocks;
+        dejaLa.note = noteSeance || null;
       } else {
         performances.push({
           id: crypto.randomUUID(), weekKey: isoWeekKey(new Date(dateChoisie)),
-          date: dateChoisie, note: null, exercices: blocks
+          date: dateChoisie, note: noteSeance || null, exercices: blocks
         });
       }
       await save('performances', performances);
@@ -3133,7 +3191,9 @@ function renderSeanceRecap(){
       return '<div class="recap-row">' +
         '<span class="recap-label">' + se.date +
           (isToday ? ' <strong style="color:var(--accent-2);">- aujourd\'hui</strong>' : '') +
-          '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' + names + '</small></span>' +
+          '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' + names + '</small>' +
+          (se.note ? '<br><small class="seance-note">&#128221; ' + String(se.note).replace(/</g,'&lt;') + '</small>' : '') +
+        '</span>' +
         '<span style="display:flex;align-items:center;gap:12px;">' +
           '<span class="recap-value">' + vol + '<span class="unit">kg vol.</span></span>' +
           '<button class="del-btn" onclick="deleteSeance(\'' + se.id + '\')" title="Supprimer cette seance">&#10005;</button>' +
@@ -3354,6 +3414,7 @@ function downloadProfileCard(){
 //  PAGE DE PROFIL
 // ============================================================
 let vueAvantProfil = 'accueil';
+let profilCourant = null;
 
 function dateCourte(iso){
   if(!iso) return '';
@@ -3404,6 +3465,7 @@ async function openProfile(cle, parPseudo){
       el.innerHTML = '<div class="card"><p class="recap-empty">Ce profil n\'existe pas ou n\'est plus disponible.</p></div>';
       return;
     }
+    profilCourant = d.id;
     if(d.pseudo) history.replaceState(null, '', window.location.pathname + '#/u/' + encodeURIComponent(d.pseudo));
 
     const streak = d.streak || 0;
@@ -3436,13 +3498,7 @@ async function openProfile(cle, parPseudo){
       if(d.partage_seances){
         html += '<div class="card"><h2>Seances de la semaine</h2>';
         html += seances.length
-          ? '<div class="recap">' + seances.map(function(se){
-              const noms = (se.exercices||[]).join(', ');
-              return '<div class="recap-row"><span class="recap-label">' + se.date +
-                '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' +
-                String(noms).replace(/</g,'&lt;') + '</small></span>' +
-                '<span class="recap-value">' + Math.round(se.volume) + '<span class="unit">kg vol.</span></span></div>';
-            }).join('') + '</div>'
+          ? seances.map(function(se){ return blocSeance(se, d.relation === 'ami'); }).join('')
           : '<p class="recap-empty">Aucune seance enregistree cette semaine.</p>';
         html += '</div>';
       } else if(d.relation !== 'moi'){
@@ -3479,6 +3535,60 @@ async function openProfile(cle, parPseudo){
   }
 }
 
+// Une seance affichee sur le profil d'un ami, avec sa note
+// et les reactions. On ne peut que reagir, jamais commenter.
+const REACTIONS = ['\u{1F4AA}','\u{1F525}','\u{1F44F}','\u{1F680}','\u{1F62E}'];
+
+function blocSeance(se, peutReagir){
+  const noms = (se.exercices||[]).join(', ');
+  const compte = se.reactions || {};
+  const totaux = Object.keys(compte).map(function(sg){
+    return '<span class="reac-compte">' + sg + ' ' + compte[sg] + '</span>';
+  }).join('');
+
+  let boutons = '';
+  if(peutReagir){
+    boutons = REACTIONS.map(function(sg){
+      return '<button class="reac-btn' + (se.ma_reaction===sg?' choisi':'') + '" ' +
+        'data-seance="' + se.id + '" data-signe="' + sg + '" ' +
+        'onclick="reagirSeance(\'' + se.id + '\',\'' + sg + '\')" ' +
+        'title="Reagir">' + sg + '</button>';
+    }).join('');
+    if(se.ma_reaction){
+      boutons += '<button class="reac-btn" onclick="retirerReaction(\'' + se.id + '\')" title="Retirer ma reaction">\u2715</button>';
+    }
+  }
+
+  return '<div class="seance-bloc">' +
+    '<div class="seance-entete">' +
+      '<span class="recap-label">' + se.date +
+        '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' +
+        String(noms).replace(/</g,'&lt;') + '</small></span>' +
+      '<span class="recap-value">' + Math.round(se.volume) + '<span class="unit">kg vol.</span></span>' +
+    '</div>' +
+    (se.note ? '<div class="seance-note">\u{1F4DD} ' + String(se.note).replace(/</g,'&lt;') + '</div>' : '') +
+    ((totaux || boutons) ? '<div class="reac-row">' + totaux + boutons + '</div>' : '') +
+  '</div>';
+}
+
+async function reagirSeance(seanceId, signe){
+  try{
+    const res = await db.rpc('reagir_seance', {seance: seanceId, signe: signe});
+    if(res.error) throw res.error;
+    showToast('Reaction envoyee ' + signe);
+    if(profilCourant) openProfile(profilCourant);
+  }catch(e){ showToast(e.message || 'Reaction impossible'); }
+}
+
+async function retirerReaction(seanceId){
+  try{
+    const res = await db.rpc('retirer_reaction', {seance: seanceId});
+    if(res.error) throw res.error;
+    showToast('Reaction retiree');
+    if(profilCourant) openProfile(profilCourant);
+  }catch(e){ showToast(e.message || 'Action impossible'); }
+}
+
 function boutonRelation(d){
   if(d.relation === 'inconnu')
     return '<button class="primary" onclick="demanderAmiDepuisProfil(\'' + d.id + '\')">Ajouter en ami</button>';
@@ -3511,6 +3621,28 @@ function checkProfileLink(){
 // moderation, blocage) qu'on ne pourrait pas assumer.
 const SIGNES = ['\u{1F4AA}','\u{1F525}','\u{1F44F}','\u{1F680}'];
 let encData = {recus:[], envoyes:{}};
+
+async function chargerReactions(){
+  const el = document.getElementById('reactions-recues');
+  if(!el) return;
+  try{
+    const res = await db.rpc('mes_reactions');
+    if(res.error) throw res.error;
+    const list = res.data || [];
+    if(!list.length){ el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.innerHTML = '<h2>Reactions a tes seances</h2><div class="enc-list">' +
+      list.map(function(r){
+        return '<div class="enc-row">' +
+          '<span class="enc-signe">' + r.signe + '</span>' +
+          '<span class="enc-texte"><strong>' + String(r.pseudo).replace(/</g,'&lt;') +
+          '</strong> a reagi a ta seance du ' + r.seance_date + '.</span></div>';
+      }).join('') + '</div>';
+  }catch(e){
+    console.error('Reactions indisponibles', e);
+    el.style.display = 'none';
+  }
+}
 
 async function chargerEncouragements(){
   try{
@@ -3583,6 +3715,7 @@ async function chargerAmis(){
   renderAmisBadge();
   renderAmisActivity();
   chargerEncouragements();
+  chargerReactions();
 }
 
 function renderAmisBadge(){
