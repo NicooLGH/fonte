@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
@@ -1029,6 +1027,35 @@ nav.tabs button.active .tab-badge{background:var(--accent);color:#fff;}
 .amis-banner-text{font-size:14px;color:var(--ink-soft);line-height:1.45;}
 .amis-banner-text strong{color:var(--ink);}
 
+.profil-hero{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+.profil-avatar-xl{
+  width:88px;height:88px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:44px;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+}
+.profil-ident{flex:1;min-width:200px;}
+.profil-nom{
+  font-family:var(--font-display);font-size:clamp(34px,5vw,52px);line-height:1;
+  text-transform:uppercase;margin:0 0 10px;color:var(--ink);
+}
+.profil-tags{display:flex;gap:8px;flex-wrap:wrap;}
+.profil-tag{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:0.05em;
+  padding:5px 12px;border-radius:999px;
+  background:var(--glass-tint);border:1px solid var(--glass-border);color:var(--ink-soft);
+}
+.profil-tag.actif{color:var(--accent);background:rgba(var(--accent-rgb),0.1);border-color:rgba(var(--accent-rgb),0.3);}
+.profil-tag.ami{color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.1);border-color:rgba(var(--accent-2-rgb),0.3);}
+.profil-depuis{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);opacity:.7;margin-top:8px;}
+.profil-action{flex-shrink:0;}
+.profil-action button{border-radius:999px;padding:11px 22px;}
+@media(max-width:640px){
+  .profil-hero{gap:16px;}
+  .profil-avatar-xl{width:64px;height:64px;font-size:32px;}
+  .profil-action{width:100%;}
+  .profil-action button{width:100%;}
+}
+
 /* ---- Partage de profil ---- */
 .profile-share{
   display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
@@ -1496,6 +1523,11 @@ table tr{border-color:var(--glass-tint-strong);}
     </div>
   </div>
 
+  <div class="view" id="view-profil">
+    <button class="ghost" onclick="quitterProfil()" style="margin-bottom:18px;">&larr; Retour</button>
+    <div id="profil-content"></div>
+  </div>
+
   <div class="view" id="view-reglages">
     <div class="card">
       <h2>Profil</h2>
@@ -1514,6 +1546,23 @@ table tr{border-color:var(--glass-tint-strong);}
         <div class="settings-control">
           <input type="text" id="settings-pseudo" maxlength="24" placeholder="Ton pseudo">
           <button class="small" onclick="saveSettingsPseudo()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Apparence</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Partager mes séances</strong>
+          <span>Tes amis verront les séances de la semaine en cours — dates, exercices et volume.<br>
+            Les semaines passées, tes mensurations et ton suivi restent privés dans tous les cas.</span>
+        </div>
+        <div class="settings-control">
+          <div class="theme-toggle">
+            <button class="theme-btn" data-partage="oui" onclick="setPartageSeances(true)">Amis</button>
+            <button class="theme-btn" data-partage="non" onclick="setPartageSeances(false)">Privé</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1589,7 +1638,6 @@ table tr{border-color:var(--glass-tint-strong);}
     <div class="footer-actions">
       <button class="ghost" onclick="openExportModal()">💾 Exporter mes données (JSON)</button>
       <button class="ghost" onclick="openImportModal()">📥 Importer des données</button>
-      <button class="ghost" onclick="generatePDF()">📄 Exporter un bilan (PDF)</button>
       <button class="ghost" onclick="openShareConfigModal()">🖼️ Partager ma progression</button>
     </div>
     <div class="footer-note">FONTE<span>.</span> — Ton carnet, synchronisé et privé.
@@ -1691,15 +1739,6 @@ table tr{border-color:var(--glass-tint-strong);}
       <button class="small" onclick="closeShareProfile()">Fermer</button>
       <button class="small" onclick="copyProfileLink()">Copier le lien</button>
       <button class="primary" onclick="downloadProfileCard()">Télécharger en JPG</button>
-    </div>
-  </div>
-</div>
-
-<div id="public-profile-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closePublicProfile()">
-  <div class="modal-card" style="max-width:420px;">
-    <div id="public-profile-body"></div>
-    <div class="modal-actions">
-      <button class="primary" onclick="closePublicProfile()">Retour à mon carnet</button>
     </div>
   </div>
 </div>
@@ -1975,6 +2014,7 @@ let reminderDismissedWeek = null;
 let pseudo = '';
 let avatar = '💪';
 let onboarded = true;
+let partageSeances = false;
 
 const todayStr = () => new Date().toISOString().slice(0,10);
 const fieldLabels = {pec:'Pectoraux',bras:'Bras',epaule:'Épaules',jambe:'Jambes',taille:'Taille'};
@@ -2138,7 +2178,7 @@ async function loadAll(){
   try{
     const uid = currentUser.id;
     const [rProfile, rExos, rMensu, rSeances, rSeries, rSuivi, rObj, rRemind] = await Promise.all([
-      db.from('profiles').select('pseudo, avatar, onboarded').eq('id', uid).maybeSingle(),
+      db.from('profiles').select('pseudo, avatar, onboarded, partage_seances').eq('id', uid).maybeSingle(),
       db.from('exercices').select('*').order('created_at'),
       db.from('mensurations').select('*'),
       db.from('seances').select('*'),
@@ -2155,6 +2195,7 @@ async function loadAll(){
     pseudo    = rProfile.data?.pseudo || '';
     avatar    = rProfile.data?.avatar || '💪';
     onboarded = rProfile.data?.onboarded ?? false;
+    partageSeances = rProfile.data?.partage_seances ?? false;
 
     exercices = (rExos.data||[]).map(e=>({
       id: e.id, name: e.name,
@@ -2268,7 +2309,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v1.7.0';
+const APP_VERSION = 'v1.8.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -2461,6 +2502,7 @@ function renderSettings(){
   document.getElementById('settings-pseudo').value = pseudo || '';
   document.getElementById('settings-email').textContent = currentUser ? currentUser.email : '—';
   renderAvatarPicker('settings-avatar-picker', avatar, saveAvatar);
+  renderPartageBtns();
   document.querySelectorAll('.theme-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.themeValue===themePref);
   });
@@ -3052,7 +3094,10 @@ function toggleHelp(id){
 //  PARTAGE DE PROFIL
 // ============================================================
 function profileURL(){
-  return window.location.origin + window.location.pathname + '#u=' + currentUser.id;
+  // Adresse lisible plutot qu'un identifiant technique.
+  // Le prefixe #/ evite d'avoir a configurer le serveur.
+  return window.location.origin + window.location.pathname +
+         '#/u/' + encodeURIComponent(pseudo || '');
 }
 
 function openShareProfile(){
@@ -3184,81 +3229,151 @@ function downloadProfileCard(){
   }, 'image/jpeg', 0.92);
 }
 
-async function openProfile(targetId){
-  const modal = document.getElementById('public-profile-modal');
-  const body = document.getElementById('public-profile-body');
-  body.innerHTML = '<p class="recap-empty">Chargement du profil...</p>';
-  modal.style.display = 'flex';
+// ============================================================
+//  PAGE DE PROFIL
+// ============================================================
+let vueAvantProfil = 'accueil';
+
+function dateCourte(iso){
+  if(!iso) return '';
+  return new Date(iso).toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'});
+}
+function anciennete(iso){
+  if(!iso) return '';
+  const jours = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if(jours < 1)  return "depuis aujourd'hui";
+  if(jours < 7)  return 'depuis ' + jours + ' jour' + (jours>1?'s':'');
+  if(jours < 31){ const sem = Math.floor(jours/7); return 'depuis ' + sem + ' semaine' + (sem>1?'s':''); }
+  const mois = Math.floor(jours/30);
+  if(mois < 12) return 'depuis ' + mois + ' mois';
+  const ans = Math.floor(mois/12);
+  return 'depuis ' + ans + ' an' + (ans>1?'s':'');
+}
+
+function ouvrirVueProfil(){
+  const actif = document.querySelector('nav.tabs button.active');
+  if(actif) vueAvantProfil = actif.dataset.view;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('nav-avatar')?.classList.remove('active');
+  document.getElementById('view-profil').classList.add('active');
+  positionNavSlider();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function quitterProfil(){
+  history.replaceState(null, '', window.location.pathname);
+  const btn = document.querySelector('nav.tabs button[data-view="' + vueAvantProfil + '"]')
+           || document.querySelector('nav.tabs button[data-view="accueil"]');
+  btn.click();
+}
+
+async function openProfile(cle, parPseudo){
+  ouvrirVueProfil();
+  const el = document.getElementById('profil-content');
+  el.innerHTML = '<div class="card"><p class="recap-empty">Chargement du profil...</p></div>';
+
   try{
-    const res = await db.rpc('get_profile', {target: targetId});
+    const res = parPseudo
+      ? await db.rpc('get_profile_par_pseudo', {p: cle})
+      : await db.rpc('get_profile', {target: cle});
     if(res.error) throw res.error;
     const d = res.data;
-    if(!d){ body.innerHTML = '<p class="recap-empty">Ce profil n\'existe pas ou n\'est plus disponible.</p>'; return; }
+    if(!d){
+      el.innerHTML = '<div class="card"><p class="recap-empty">Ce profil n\'existe pas ou n\'est plus disponible.</p></div>';
+      return;
+    }
+    if(d.pseudo) history.replaceState(null, '', window.location.pathname + '#/u/' + encodeURIComponent(d.pseudo));
 
     const streak = d.streak || 0;
-    let html =
-      '<div class="pub-head">' +
-        '<div class="pub-avatar">' + (d.avatar || '&#128170;') + '</div>' +
-        '<div><div class="pub-name">' + String(d.pseudo||'Anonyme').replace(/</g,'&lt;') + '</div>' +
-        '<div class="pub-rank">' + (streak>0 ? streak + ' semaine' + (streak>1?'s':'') + " d'affilee" : 'Aucune serie en cours') + '</div></div>' +
-      '</div>';
+    let html = '<div class="card profil-hero">' +
+      '<div class="profil-avatar-xl">' + (d.avatar || '&#128170;') + '</div>' +
+      '<div class="profil-ident">' +
+        '<h1 class="profil-nom">' + String(d.pseudo||'Anonyme').replace(/</g,'&lt;') + '</h1>' +
+        '<div class="profil-tags">' +
+          (streak>0
+            ? '<span class="profil-tag actif">&#128293; ' + streak + ' semaine' + (streak>1?'s':'') + " d'affilee</span>"
+            : '<span class="profil-tag">Aucune serie en cours</span>') +
+          (d.relation==='ami' && d.ami_depuis
+            ? '<span class="profil-tag ami">&#129309; Amis ' + anciennete(d.ami_depuis) + '</span>' : '') +
+        '</div>' +
+        (d.relation==='ami' && d.ami_depuis
+          ? '<div class="profil-depuis">Ami depuis le ' + dateCourte(d.ami_depuis) + '</div>' : '') +
+      '</div>' +
+      '<div class="profil-action">' + boutonRelation(d) + '</div>' +
+    '</div>';
 
     if(d.detail){
+      html += '<div class="card"><h2>Statistiques</h2><div class="pub-stats">' +
+        '<div><span class="pub-stat-num">' + d.semaines + '</span><span class="pub-stat-lab">Semaines suivies</span></div>' +
+        '<div><span class="pub-stat-num">' + d.exercices + '</span><span class="pub-stat-lab">Exercices suivis</span></div>' +
+        '<div><span class="pub-stat-num">' + Math.round(d.volume) + '</span><span class="pub-stat-lab">Kg cette semaine</span></div>' +
+        '<div><span class="pub-stat-num">' + streak + '</span><span class="pub-stat-lab">Semaines d\'affilee</span></div>' +
+      '</div></div>';
+
+      const seances = d.seances || [];
+      if(d.partage_seances){
+        html += '<div class="card"><h2>Seances de la semaine</h2>';
+        html += seances.length
+          ? '<div class="recap">' + seances.map(function(se){
+              const noms = (se.exercices||[]).join(', ');
+              return '<div class="recap-row"><span class="recap-label">' + se.date +
+                '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' +
+                String(noms).replace(/</g,'&lt;') + '</small></span>' +
+                '<span class="recap-value">' + Math.round(se.volume) + '<span class="unit">kg vol.</span></span></div>';
+            }).join('') + '</div>'
+          : '<p class="recap-empty">Aucune seance enregistree cette semaine.</p>';
+        html += '</div>';
+      } else if(d.relation !== 'moi'){
+        html += '<div class="card"><h2>Seances de la semaine</h2>' +
+          '<p class="recap-empty">Cette personne ne partage pas ses seances.</p></div>';
+      }
+
       const recs = d.records || [];
-      html +=
-        '<div class="pub-stats">' +
-          '<div><span class="pub-stat-num">' + d.semaines + '</span><span class="pub-stat-lab">Semaines suivies</span></div>' +
-          '<div><span class="pub-stat-num">' + d.exercices + '</span><span class="pub-stat-lab">Exercices suivis</span></div>' +
-          '<div><span class="pub-stat-num">' + Math.round(d.volume) + '</span><span class="pub-stat-lab">Kg cette semaine</span></div>' +
-          '<div><span class="pub-stat-num">' + streak + '</span><span class="pub-stat-lab">Semaines d\'affilee</span></div>' +
-        '</div>' +
+      html += '<div class="card"><h2>Records personnels</h2>' +
         (recs.length
           ? '<div class="recap">' + recs.map(function(r){
               return '<div class="recap-row"><span class="recap-label">' +
                 String(r.exercice).replace(/</g,'&lt;') +
                 '</span><span class="recap-value">' + r.poids + '<span class="unit">kg</span></span></div>';
             }).join('') + '</div>'
-          : '<p class="recap-empty">Aucun record enregistre pour l\'instant.</p>');
+          : '<p class="recap-empty">Aucun record enregistre pour l\'instant.</p>') + '</div>';
     } else {
-      html += '<p class="recap-empty">Ce profil est prive. Deviens ami avec cette personne pour voir ses ' +
-              'statistiques et ses records. Ses mensurations et son suivi resteront prives dans tous les cas.</p>';
+      html += '<div class="card"><h2>Profil prive</h2>' +
+        '<p class="block-intro">Deviens ami avec cette personne pour voir ses statistiques, ses records ' +
+        'et, si elle le partage, ses seances de la semaine.</p>' +
+        '<p class="recap-empty">Ses mensurations et son suivi hebdomadaire resteront prives dans tous les cas.</p></div>';
     }
 
-    // Action selon la relation
-    let action = '';
-    if(d.relation === 'inconnu')
-      action = '<button class="primary" style="width:100%;border-radius:999px;margin-top:6px;" onclick="demanderAmiDepuisProfil(\'' + d.id + '\')">Ajouter en ami</button>';
-    else if(d.relation === 'demande_envoyee')
-      action = '<p class="recap-empty" style="margin:0;">Demande envoyee, en attente de reponse.</p>';
-    else if(d.relation === 'demande_recue')
-      action = '<button class="primary" style="width:100%;border-radius:999px;margin-top:6px;" onclick="accepterAmiDepuisProfil(\'' + d.id + '\')">Accepter sa demande</button>';
-    else if(d.relation === 'ami')
-      action = '<p class="recap-empty" style="margin:0;">Vous etes amis.</p>';
-    html += action;
-
-    body.innerHTML = html;
+    el.innerHTML = html;
   }catch(e){
     console.error(e);
-    body.innerHTML = '<p class="recap-empty">Impossible de charger ce profil.</p>';
+    el.innerHTML = '<div class="card"><p class="recap-empty">Impossible de charger ce profil.</p></div>';
   }
 }
 
-async function demanderAmiDepuisProfil(id){
-  await demanderAmi(id);
-  openProfile(id);
-}
-async function accepterAmiDepuisProfil(id){
-  await accepterAmi(id);
-  openProfile(id);
+function boutonRelation(d){
+  if(d.relation === 'inconnu')
+    return '<button class="primary" onclick="demanderAmiDepuisProfil(\'' + d.id + '\')">Ajouter en ami</button>';
+  if(d.relation === 'demande_envoyee')
+    return '<button class="ghost" onclick="retirerAmiDepuisProfil(\'' + d.id + '\')">Annuler la demande</button>';
+  if(d.relation === 'demande_recue')
+    return '<button class="primary" onclick="accepterAmiDepuisProfil(\'' + d.id + '\')">Accepter sa demande</button>';
+  if(d.relation === 'ami')
+    return '<button class="ghost" onclick="retirerAmiDepuisProfil(\'' + d.id + '\')">Retirer des amis</button>';
+  return '';
 }
 
-function closePublicProfile(){
-  document.getElementById('public-profile-modal').style.display = 'none';
-  history.replaceState(null, '', window.location.pathname);
-}
+async function demanderAmiDepuisProfil(id){ await demanderAmi(id); openProfile(id); }
+async function accepterAmiDepuisProfil(id){ await accepterAmi(id); openProfile(id); }
+async function retirerAmiDepuisProfil(id){ await retirerAmi(id); openProfile(id); }
+
 function checkProfileLink(){
-  const m = window.location.hash.match(/^#u=([0-9a-f-]{36})$/i);
-  if(m && m[1] !== currentUser.id) openProfile(m[1]);
+  const h = window.location.hash;
+  const parPseudo = h.match(/^#\/u\/(.+)$/);
+  if(parPseudo){ openProfile(decodeURIComponent(parPseudo[1]), true); return; }
+  const parId = h.match(/^#u=([0-9a-f-]{36})$/i);
+  if(parId && parId[1] !== currentUser.id) openProfile(parId[1]);
 }
 
 // ============================================================
@@ -3326,7 +3441,8 @@ function renderAmis(){
       const meta = (p.actif_semaine
           ? '<span class="actif">&#9679; entraine cette semaine</span>'
           : 'pas encore actif cette semaine') +
-        (streak > 0 ? ' &middot; ' + streak + ' semaine' + (streak>1?'s':'') + " d'affilee" : '');
+        (streak > 0 ? ' &middot; ' + streak + ' semaine' + (streak>1?'s':'') + " d'affilee" : '') +
+        (p.ami_depuis ? ' &middot; ami ' + anciennete(p.ami_depuis) : '');
       return personRow(p,
         '<button onclick="openProfile(\'' + p.id + '\')">Voir</button>' +
         '<button onclick="retirerAmi(\'' + p.id + '\')">Retirer</button>',
@@ -3475,6 +3591,22 @@ async function confirmDeleteAccount(){
     btn.textContent = 'Supprimer mon compte';
     showToast('⚠️ La suppression a échoué — réessaie');
   }
+}
+
+async function setPartageSeances(actif){
+  try{
+    const res = await db.rpc('set_partage_seances', {actif: actif});
+    if(res.error) throw res.error;
+    partageSeances = actif;
+    renderPartageBtns();
+    showToast(actif ? 'Tes seances sont visibles par tes amis' : 'Tes seances sont privees');
+  }catch(e){ showToast(e.message || 'Enregistrement impossible'); }
+}
+
+function renderPartageBtns(){
+  document.querySelectorAll('.theme-btn[data-partage]').forEach(function(b){
+    b.classList.toggle('active', (b.dataset.partage === 'oui') === partageSeances);
+  });
 }
 
 async function changePassword(){
@@ -4633,89 +4765,130 @@ function closeShareConfigModal(){ document.getElementById('share-config-modal').
 async function generateShareImage(){
   closeShareConfigModal();
   try{
-    try{ await document.fonts.load('700 90px "Bebas Neue"'); await document.fonts.load('400 34px "IBM Plex Mono"'); }catch(e){}
+    try{
+      await document.fonts.load('400 90px "Bebas Neue"');
+      await document.fonts.load('400 30px "IBM Plex Mono"');
+      await document.fonts.load('600 30px Inter');
+    }catch(e){}
 
-    const W=1080, H=1350;
+    const W=1080, H=1350, M=90;
     const canvas = document.createElement('canvas');
     canvas.width=W; canvas.height=H;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = '#0E0F11'; ctx.fillRect(0,0,W,H);
-    const grad = ctx.createRadialGradient(W*0.18,H*0.1,50,W*0.18,H*0.1,650);
-    grad.addColorStop(0,'rgba(255,75,43,0.35)'); grad.addColorStop(1,'rgba(255,75,43,0)');
-    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+    // --- Fond : degrade sombre + deux halos ---
+    const bg = ctx.createLinearGradient(0,0,W,H);
+    bg.addColorStop(0,'#131519'); bg.addColorStop(1,'#0B0C0E');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+    let g = ctx.createRadialGradient(W*0.12,H*0.05,40,W*0.12,H*0.05,760);
+    g.addColorStop(0,'rgba(255,75,43,0.30)'); g.addColorStop(1,'rgba(255,75,43,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    g = ctx.createRadialGradient(W*0.95,H*0.42,40,W*0.95,H*0.42,700);
+    g.addColorStop(0,'rgba(76,201,240,0.20)'); g.addColorStop(1,'rgba(76,201,240,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
-    // bande hazard
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0,0,W,26); ctx.clip();
-    for(let x=-40;x<W+40;x+=44){
-      ctx.fillStyle = (Math.floor(x/44)%2===0) ? '#FFD400' : '#0E0F11';
-      ctx.save(); ctx.translate(x,0); ctx.rotate(Math.PI/4);
-      ctx.fillRect(-10,-60,44,120);
+    // --- Utilitaires ---
+    function carte(x,y,w,h,r){
+      ctx.save();
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(x,y,w,h,r);
+      else ctx.rect(x,y,w,h);
+      ctx.fillStyle='rgba(255,255,255,0.045)'; ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1.5; ctx.stroke();
       ctx.restore();
     }
-    ctx.restore();
-
-    ctx.fillStyle = '#F4F3EE';
-    ctx.font = '700 100px "Bebas Neue", sans-serif';
-    ctx.fillText('FONTE', 70, 170);
-
-    const monthName = new Date().toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
-    ctx.fillStyle = '#8D9096';
-    ctx.font = '32px "IBM Plex Mono", monospace';
-    ctx.fillText(monthName.toUpperCase(), 70, 220);
+    function mono(t,x,y,size,color,align){
+      ctx.fillStyle=color; ctx.textAlign=align||'left';
+      ctx.font='400 '+size+'px "IBM Plex Mono", monospace';
+      ctx.fillText(t,x,y); ctx.textAlign='left';
+    }
+    function display(t,x,y,size,color,align){
+      ctx.fillStyle=color; ctx.textAlign=align||'left';
+      ctx.font='400 '+size+'px "Bebas Neue", sans-serif';
+      ctx.fillText(t,x,y); ctx.textAlign='left';
+    }
+    function inter(t,x,y,size,color,weight,align){
+      ctx.fillStyle=color; ctx.textAlign=align||'left';
+      ctx.font=(weight||'600')+' '+size+'px Inter, sans-serif';
+      ctx.fillText(t,x,y); ctx.textAlign='left';
+    }
 
     const stats = computeHomeStats();
-    const opt = id => document.getElementById(id)?.checked;
-    let lines = [];
+    const info  = computeLevelInfo(computeTotalXP());
 
-    if(opt('opt-monthly')) lines = lines.concat(computeMonthlySummary());
-    if(opt('opt-poids')){
-      const w = sortByWeek(suivi.filter(s=>s.poids!=null));
-      if(w.length) lines.push(['Poids actuel', w[w.length-1].poids+' kg']);
-    }
-    if(opt('opt-weeks')) lines.push(['Semaines suivies', String(stats.weeks)]);
-    if(opt('opt-record')){
-      const exoId = document.getElementById('opt-record-exo')?.value;
-      const exo = exercices.find(e=>e.id===exoId);
-      if(exo){
-        const entries = getExoEntries(exo.id);
-        if(entries.length){
-          let maxEver=0;
-          entries.forEach(e=>{ const m=Math.max(...e.sets.map(s=>s.poids)); if(m>maxEver) maxEver=m; });
-          lines.push([exo.name, maxEver+' kg']);
-        }
-      }
-    }
-    if(lines.length===0) lines.push(['Semaines suivies', String(stats.weeks)]);
-    lines = lines.slice(0,5);
+    // --- En-tete ---
+    display('FONTE', M, 108, 52, '#F4F3EE');
+    ctx.font='400 52px "Bebas Neue", sans-serif';
+    display('.', M + ctx.measureText('FONTE').width, 108, 52, '#FF4B2B');
+    mono('SEMAINE ' + weekLabel(isoWeekKey(new Date())).toUpperCase(), W-M, 104, 24, '#8D9096', 'right');
 
-    const startY = 400, footerZone = 220;
-    const availableH = (H-footerZone) - startY;
-    const step = Math.min(165, availableH/lines.length);
-    let y = startY;
-    lines.forEach(([label,val])=>{
-      ctx.fillStyle='#8D9096'; ctx.font='30px "IBM Plex Mono", monospace';
-      ctx.fillText(String(label).toUpperCase(), 70, y);
-      ctx.fillStyle='#4CC9F0'; ctx.font='700 '+Math.round(Math.min(76, step*0.46))+'px "Bebas Neue", sans-serif';
-      ctx.fillText(String(val), 70, y+step*0.5);
-      y += step;
+    // --- Bloc identite ---
+    carte(M, 150, W-M*2, 230, 32);
+    ctx.font='72px sans-serif'; ctx.fillText(avatar, M+44, 268);
+    display((pseudo||'Anonyme').toUpperCase(), M+150, 262, 82, '#F4F3EE');
+    mono('NIVEAU ' + info.level + '  \u00B7  ' + rankName(info.level).toUpperCase(), M+150, 306, 26, '#4CC9F0');
+
+    // Barre de progression
+    const bx=M+44, by=336, bw=W-M*2-88, bh=12;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
+    ctx.fillStyle='rgba(255,255,255,0.10)'; ctx.fill();
+    const fw = Math.max(8, bw * (info.progress||0));
+    const lg = ctx.createLinearGradient(bx,0,bx+fw,0);
+    lg.addColorStop(0,'#FF4B2B'); lg.addColorStop(1,'#FF8A63');
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(bx,by,fw,bh,6); else ctx.rect(bx,by,fw,bh);
+    ctx.fillStyle=lg; ctx.fill();
+
+    // --- Quatre statistiques ---
+    const cells = [
+      [stats.weeks,  'SEMAINES SUIVIES'],
+      [stats.exos,   'EXERCICES SUIVIS'],
+      [stats.volume, 'KG CETTE SEMAINE'],
+      [stats.streak, "SEMAINES D'AFFILEE"]
+    ];
+    const cw=(W-M*2-24)/2, ch=150;
+    cells.forEach(function(c,i){
+      const x = M + (i%2)*(cw+24);
+      const y = 412 + Math.floor(i/2)*(ch+24);
+      carte(x,y,cw,ch,26);
+      display(String(c[0]), x+36, y+92, 76, '#FF4B2B');
+      mono(c[1], x+36, y+124, 21, '#8D9096');
     });
 
-    if(opt('opt-streak') && stats.streak>0){
-      ctx.fillStyle='#FF4B2B'; ctx.font='700 56px "Bebas Neue", sans-serif';
-      ctx.fillText(`🔥 ${stats.streak} SEMAINES D'AFFILÉE`, 70, H-140);
+    // --- Records ---
+    const recs = exercices.map(function(e){
+      const entries = getExoEntries(e.id);
+      if(!entries.length) return null;
+      let mx=0; entries.forEach(function(en){ en.sets.forEach(function(st){ if(st.poids>mx) mx=st.poids; }); });
+      return {name:e.name, poids:mx};
+    }).filter(Boolean).sort(function(a,b){return b.poids-a.poids;}).slice(0,4);
+
+    let y = 412 + 2*(ch+24) + 12;
+    if(recs.length){
+      carte(M, y, W-M*2, 76 + recs.length*66, 30);
+      mono('RECORDS PERSONNELS', M+36, y+50, 22, '#8D9096');
+      let ry = y + 108;
+      recs.forEach(function(r){
+        inter(r.name.length>24 ? r.name.slice(0,24)+'\u2026' : r.name, M+36, ry, 30, '#F4F3EE');
+        display(r.poids + ' KG', W-M-36, ry+6, 46, '#4CC9F0', 'right');
+        ry += 66;
+      });
+      y += 76 + recs.length*66 + 24;
     }
 
-    ctx.fillStyle='#8D9096'; ctx.font='26px "IBM Plex Mono", monospace';
-    ctx.fillText('#FONTE — carnet de suivi personnel', 70, H-70);
+    // --- Pied de page ---
+    mono('MON CARNET DE PERFORMANCE', M, H-96, 24, '#8D9096');
+    mono(APP_VERSION, W-M, H-96, 20, 'rgba(141,144,150,0.6)', 'right');
+    ctx.beginPath(); ctx.moveTo(M,H-140); ctx.lineTo(W-M,H-140);
+    ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1.5; ctx.stroke();
 
     shareImageDataURL = canvas.toDataURL('image/png');
     document.getElementById('share-preview').src = shareImageDataURL;
     document.getElementById('share-modal').style.display = 'flex';
   }catch(e){
     console.error(e);
-    showToast('Génération de l\'image impossible');
+    showToast('Generation de l\'image impossible');
   }
 }
 
@@ -4729,122 +4902,6 @@ function downloadShareImage(){
   showToast('Image téléchargée ✓');
 }
 
-function generatePDF(){
-  try{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const accent = [255,75,43];
-    let y = 22;
-
-    doc.setFont('helvetica','bold'); doc.setFontSize(24);
-    doc.setTextColor(20,20,20);
-    doc.text('FONTE', 20, y);
-    doc.setFontSize(11); doc.setFont('helvetica','normal'); doc.setTextColor(110,110,110);
-    doc.text(`Bilan personnel — généré le ${todayStr()}`, 20, y+7);
-    doc.setDrawColor(...accent); doc.setLineWidth(1);
-    doc.line(20, y+12, 190, y+12);
-    y += 24;
-
-    const section = (title) => {
-      doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(20,20,20);
-      doc.text(title, 20, y);
-      y += 6;
-    };
-
-    // Mensurations
-    section('Mensurations');
-    if(mensurations.length>0){
-      const weeks = sortByWeek(mensurations);
-      doc.autoTable({
-        startY: y,
-        head: [['Semaine','Date','Pec. (cm)','Bras (cm)','Épaule (cm)','Jambe (cm)','Taille (cm)']],
-        body: weeks.map(m=>[weekLabel(m.weekKey), m.date, m.pec??'—', m.bras??'—', m.epaule??'—', m.jambe??'—', m.taille??'—']),
-        styles:{fontSize:8}, headStyles:{fillColor:accent}, margin:{left:20,right:20},
-      });
-      y = doc.lastAutoTable.finalY + 12;
-    } else { doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120,120,120); doc.text('Aucune donnée.', 20, y); y+=12; }
-
-    if(y>240){ doc.addPage(); y=20; }
-
-    // Suivi hebdo
-    section('Suivi hebdo');
-    if(suivi.length>0){
-      const weeks = sortByWeek(suivi);
-      doc.autoTable({
-        startY: y,
-        head: [['Semaine','Date','Calories','Poids (kg)','Taille (cm)','Créatine']],
-        body: weeks.map(s=>[weekLabel(s.weekKey), s.date, s.calories??'—', s.poids??'—', s.taille??'—']),
-        styles:{fontSize:8}, headStyles:{fillColor:accent}, margin:{left:20,right:20},
-      });
-      y = doc.lastAutoTable.finalY + 12;
-    } else { doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120,120,120); doc.text('Aucune donnée.', 20, y); y+=12; }
-
-    if(y>230){ doc.addPage(); y=20; }
-
-    // Records personnels
-    section('Records personnels');
-    if(exercices.length>0){
-      const body = exercices.map(exo=>{
-        const entries = getExoEntries(exo.id);
-        if(entries.length===0) return [exo.name, '—', '—'];
-        let maxEver=0, maxWeekKey=null;
-        entries.forEach(e=>{ const m=Math.max(...e.sets.map(s=>s.poids)); if(m>=maxEver){maxEver=m; maxWeekKey=e.weekKey;} });
-        return [exo.name, maxEver+' kg', weekLabel(maxWeekKey)];
-      });
-      doc.autoTable({
-        startY: y,
-        head: [['Exercice','Record','Semaine']],
-        body, styles:{fontSize:9}, headStyles:{fillColor:accent}, margin:{left:20,right:20},
-      });
-      y = doc.lastAutoTable.finalY + 12;
-    } else { doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120,120,120); doc.text('Aucun exercice.', 20, y); y+=12; }
-
-    if(y>230){ doc.addPage(); y=20; }
-
-    // Objectifs
-    section('État des objectifs');
-    const objRows = [];
-    const weeksM = sortByWeek(mensurations);
-    ['pec','bras','epaule','jambe','taille'].forEach(f=>{
-      const g = objectifs.mensu[f];
-      if(g==null) return;
-      const vals = weeksM.filter(m=>m[f]!=null);
-      if(vals.length===0) return;
-      const current = vals[vals.length-1][f];
-      objRows.push([fieldLabels[f], current+' cm', g+' cm', isGoalReached(vals[0][f], current, g)?'Atteint':'En cours']);
-    });
-    const weeksS = sortByWeek(suivi);
-    [['poids','Poids','kg'],['taille','Tour de taille','cm']].forEach(([f,label,unit])=>{
-      const g = objectifs.suivi[f];
-      if(g==null) return;
-      const vals = weeksS.filter(s=>s[f]!=null);
-      if(vals.length===0) return;
-      const current = vals[vals.length-1][f];
-      objRows.push([label, current+' '+unit, g+' '+unit, isGoalReached(vals[0][f], current, g)?'Atteint':'En cours']);
-    });
-    exercices.forEach(exo=>{
-      if(exo.objectif==null) return;
-      const entries = getExoEntries(exo.id);
-      if(entries.length===0) return;
-      const current = Math.max(...entries[entries.length-1].sets.map(s=>s.poids));
-      const baseline = Math.max(...entries[0].sets.map(s=>s.poids));
-      objRows.push([exo.name, current+' kg', exo.objectif+' kg', isGoalReached(baseline, current, exo.objectif)?'Atteint':'En cours']);
-    });
-    if(objRows.length>0){
-      doc.autoTable({
-        startY: y,
-        head: [['Objectif','Valeur actuelle','Cible','Statut']],
-        body: objRows, styles:{fontSize:9}, headStyles:{fillColor:accent}, margin:{left:20,right:20},
-      });
-    } else { doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120,120,120); doc.text('Aucun objectif défini.', 20, y); }
-
-    doc.save(`fonte-bilan-${todayStr()}.pdf`);
-    showToast('PDF généré ✓');
-  } catch(e){
-    console.error(e);
-    showToast('Export PDF indisponible — utilise l\'export JSON');
-  }
-}
 
 function deleteMensuration(id){
   mensurations = mensurations.filter(m=>m.id!==id);
