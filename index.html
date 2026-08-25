@@ -6,6 +6,7 @@
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -29,8 +30,8 @@
   --glass-border:rgba(255,255,255,0.09);
   --glass-tint:rgba(255,255,255,0.05);
   --glass-tint-strong:rgba(255,255,255,0.08);
-  --nav-bg:rgba(23,25,28,0.55);
-  --modal-bg:rgba(23,25,28,0.82);
+  --nav-bg:rgba(24,27,31,0.92);
+  --modal-bg:rgba(26,29,33,0.98);
   --hairline:rgba(255,255,255,0.08);
   --glass-radius:26px;
   --font-display:'Bebas Neue',sans-serif;
@@ -58,8 +59,8 @@
   --glass-border:rgba(0,0,0,0.09);
   --glass-tint:rgba(0,0,0,0.035);
   --glass-tint-strong:rgba(0,0,0,0.06);
-  --nav-bg:rgba(255,255,255,0.7);
-  --modal-bg:rgba(255,255,255,0.9);
+  --nav-bg:rgba(252,251,249,0.94);
+  --modal-bg:rgba(255,255,255,0.99);
   --hairline:rgba(0,0,0,0.09);
 }
 *{box-sizing:border-box;}
@@ -89,8 +90,6 @@ body.loaded .app{opacity:1;transform:translateY(0);}
   padding:9px 12px 9px 20px;
   margin:24px 0 32px;
   background:var(--nav-bg);
-  backdrop-filter:blur(22px) saturate(160%);
-  -webkit-backdrop-filter:blur(22px) saturate(160%);
   border:1px solid var(--glass-border);
   border-radius:999px;
   box-shadow:0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-tint-strong);
@@ -136,8 +135,6 @@ nav.tabs button.active{color:var(--ink-invert);}
   display:none;position:sticky;top:70px;z-index:79;
   margin:-22px 0 24px;padding:10px;
   background:var(--nav-bg);
-  backdrop-filter:blur(22px) saturate(160%);
-  -webkit-backdrop-filter:blur(22px) saturate(160%);
   border:1px solid var(--glass-border);border-radius:22px;
   box-shadow:0 8px 28px rgba(0,0,0,0.3);
 }
@@ -402,13 +399,11 @@ input[type="range"]{accent-color:var(--accent);}
 
 .modal-card{
   background:var(--modal-bg);
-  backdrop-filter:blur(28px) saturate(160%);
-  -webkit-backdrop-filter:blur(28px) saturate(160%);
   border:1px solid var(--glass-border);
   border-radius:24px;
   box-shadow:0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 var(--glass-tint-strong);
 }
-.modal-backdrop{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);background:rgba(0,0,0,0.5);}
+.modal-backdrop{background:rgba(0,0,0,0.55);}
 .modal-card textarea{background:var(--glass-tint);border-color:var(--glass-border);border-radius:14px;}
 
 .level-badge{
@@ -824,7 +819,10 @@ button.primary:disabled{
 button.primary:disabled:hover{transform:none;box-shadow:none;}
 
 /* ---- Blocs côte à côte sur grand écran ---- */
-.card-duo{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+.card-duo{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:stretch;}
+.card-duo > .card{display:flex;flex-direction:column;margin-bottom:20px;}
+.card-duo > .card > .card-body{flex:1;}
+.card-duo > .card > .primary{margin-top:auto;}
 @media(max-width:860px){ .card-duo{grid-template-columns:1fr;gap:0;} }
 
 /* ---- Récapitulatif des données saisies ---- */
@@ -917,6 +915,63 @@ button.primary:disabled:hover{transform:none;box-shadow:none;}
 .wiz-exo-opt.chosen{border-color:var(--accent);background:rgba(var(--accent-rgb),0.12);}
 .wiz-exo-opt small{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);font-weight:400;}
 
+/* ---- Bouton de déconnexion ---- */
+.nav-logout{
+  width:38px;height:38px;flex-shrink:0;border-radius:50%;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);font-size:15px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.nav-logout:hover{border-color:rgba(var(--accent-rgb),0.6);color:var(--accent);}
+@media(max-width:900px){ .nav-logout{display:none;} }
+
+/* ---- Aide contextuelle ---- */
+.help-btn{
+  width:20px;height:20px;flex-shrink:0;border-radius:50%;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);font-size:11px;font-family:var(--font-body);font-weight:700;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  margin-left:8px;vertical-align:middle;
+}
+.help-btn:hover{border-color:var(--accent-2);color:var(--accent-2);}
+.help-box{
+  display:none;margin:0 0 16px;padding:14px 16px;
+  background:rgba(var(--accent-2-rgb),0.07);
+  border:1px solid rgba(var(--accent-2-rgb),0.28);
+  border-radius:16px;
+  font-size:13px;line-height:1.55;color:var(--ink-soft);
+}
+.help-box.open{display:block;animation:fadeInSoft .2s ease both;}
+.help-box strong{color:var(--ink);}
+.block-intro{
+  font-size:13.5px;line-height:1.5;color:var(--ink-soft);margin:0 0 16px;
+}
+
+/* ---- Partage de profil ---- */
+.profile-share{
+  display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
+  font-family:var(--font-body);font-size:12.5px;font-weight:600;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+  color:var(--ink-soft);padding:9px 16px;border-radius:999px;cursor:pointer;
+  align-self:flex-start;
+}
+.profile-share:hover{border-color:var(--accent-2);color:var(--accent-2);}
+#share-card-holder canvas{
+  width:100%;height:auto;border-radius:18px;display:block;
+  border:1px solid var(--glass-border);
+}
+.pub-head{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+.pub-avatar{
+  width:56px;height:56px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:28px;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+}
+.pub-name{font-family:var(--font-display);font-size:32px;line-height:1;text-transform:uppercase;}
+.pub-rank{font-family:var(--font-mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-2);margin-top:4px;}
+.pub-stats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.pub-stat-num{display:block;font-family:var(--font-display);font-size:28px;color:var(--accent);line-height:1;}
+.pub-stat-lab{display:block;font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-soft);margin-top:4px;}
+
 /* ---- Notifications d'XP ---- */
 #xp-stack{
   position:fixed;bottom:22px;right:22px;z-index:600;
@@ -928,8 +983,6 @@ button.primary:disabled:hover{transform:none;box-shadow:none;}
   display:flex;align-items:center;gap:12px;
   padding:12px 40px 12px 16px;min-width:230px;
   background:var(--glass-solid);
-  backdrop-filter:blur(18px) saturate(150%);
-  -webkit-backdrop-filter:blur(18px) saturate(150%);
   border:1px solid rgba(var(--accent-2-rgb),0.4);
   border-radius:16px;
   box-shadow:0 8px 26px rgba(0,0,0,0.3);
@@ -1024,6 +1077,7 @@ table tr{border-color:var(--glass-tint-strong);}
       <button data-view="correlations">Corrélations</button>
     </nav>
     <button class="nav-avatar" id="nav-avatar" onclick="openSettings()" title="Réglages du compte">💪</button>
+    <button class="nav-logout" onclick="signOut()" title="Se déconnecter">⏻</button>
     <button class="nav-burger" id="nav-burger" onclick="toggleBurger()" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
@@ -1040,6 +1094,7 @@ table tr{border-color:var(--glass-tint-strong);}
     <button class="burger-item burger-settings" onclick="openSettings(); closeBurger();">
       <span id="burger-avatar">💪</span> Réglages du compte
     </button>
+    <button class="burger-item" onclick="signOut()">⏻ Se déconnecter</button>
   </div>
 
   <div id="loading" class="loading">Chargement du carnet…<div class="bar"></div></div>
@@ -1062,6 +1117,9 @@ table tr{border-color:var(--glass-tint-strong);}
               <span class="profile-streak" id="hero-streak-chip" style="display:none;"></span>
             </div>
           </div>
+          <button class="profile-share" onclick="openShareProfile()" title="Partager mon profil">
+            <span>🔗</span> Partager
+          </button>
           <div class="profile-weight" id="hero-weight-block" style="display:none;">
             <span class="profile-weight-num" id="hero-weight-num">0</span>
             <span class="profile-weight-unit">kg</span>
@@ -1097,15 +1155,32 @@ table tr{border-color:var(--glass-tint-strong);}
   <div class="view" id="view-mensurations">
     <div class="card-duo">
       <div class="card">
-        <h2>Objectifs <span class="tag">optionnel</span></h2>
-        <div id="obj-mensu-recap"></div>
+        <h2>Objectifs <button class="help-btn" onclick="toggleHelp('help-obj')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Fixe les mensurations que tu vises : tour de bras, de pectoraux, de taille… et ton poids cible.</p>
+          <div class="help-box" id="help-obj">
+            <strong>À quoi ça sert ?</strong><br>
+            Une fois tes objectifs définis, une ligne repère apparaît sur tes graphiques d'évolution et le carnet t'indique
+            ce qu'il te reste à parcourir. C'est entièrement facultatif : tu peux n'en renseigner qu'un seul, ou aucun.
+          </div>
+          <div id="obj-mensu-recap"></div>
+        </div>
         <button class="primary" id="obj-mensu-btn" onclick="startWizard('objectifs')">Définir mes objectifs</button>
       </div>
 
       <div class="card">
-        <h2>Mesure de la semaine</h2>
-        <div class="info-line" id="mensu-week-info"></div>
-        <div id="mensu-recap"></div>
+        <h2>Mesure de la semaine <button class="help-btn" onclick="toggleHelp('help-mensu')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Relève ton tour de pectoraux, bras, épaules, jambes et taille — une fois par semaine suffit.</p>
+          <div class="help-box" id="help-mensu">
+            <strong>Comment s'en servir ?</strong><br>
+            Mesure-toi toujours dans les mêmes conditions (même moment de la journée, à froid) pour que la comparaison ait du sens.
+            Une seule mesure par semaine est conservée : si tu recommences, elle est mise à jour, pas dupliquée.
+            Tu peux joindre une photo pour comparer visuellement deux semaines plus tard.
+          </div>
+          <div class="info-line" id="mensu-week-info"></div>
+          <div id="mensu-recap"></div>
+        </div>
         <button class="primary" id="mensu-btn" onclick="startWizard('mensurations')">Ajouter mes mesures</button>
       </div>
     </div>
@@ -1145,16 +1220,33 @@ table tr{border-color:var(--glass-tint-strong);}
   <div class="view" id="view-performances">
     <div class="card-duo">
       <div class="card">
-        <h2>Mes exercices</h2>
-        <div id="exo-list"></div>
-        <button class="primary" onclick="startWizard('exercice')" style="margin-top:14px;">Ajouter un exercice</button>
+        <h2>Mes exercices <button class="help-btn" onclick="toggleHelp('help-exo')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Crée les mouvements que tu pratiques. Ils deviennent ensuite sélectionnables dans tes séances.</p>
+          <div class="help-box" id="help-exo">
+            <strong>À quoi ça sert ?</strong><br>
+            Chaque exercice peut recevoir un objectif de charge : le carnet affiche alors ta progression vers ce poids.
+            Supprimer un exercice efface aussi toutes les séries qui lui sont rattachées.
+          </div>
+          <div id="exo-list"></div>
+        </div>
+        <button class="primary" onclick="startWizard('exercice')">Ajouter un exercice</button>
       </div>
 
       <div class="card">
-        <h2>Séance de la semaine</h2>
-        <div class="info-line" id="perf-week-info"></div>
-        <div id="seance-recap"></div>
-        <button class="primary" id="seance-btn" onclick="startWizard('seance')">Ajouter une séance</button>
+        <h2>Séance du jour <button class="help-btn" onclick="toggleHelp('help-seance')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Enregistre les exercices travaillés aujourd'hui, avec le poids et les répétitions de chaque série.</p>
+          <div class="help-box" id="help-seance">
+            <strong>Une seule séance par jour</strong><br>
+            Le carnet n'accepte qu'une séance quotidienne : tu peux la modifier autant que tu veux dans la journée,
+            mais pas en créer une seconde. Cette limite garantit que l'XP récompense la régularité réelle
+            et non la saisie répétée. Supprimer la séance du jour annule l'XP et les records qu'elle avait rapportés.
+          </div>
+          <div class="info-line" id="perf-week-info"></div>
+          <div id="seance-recap"></div>
+        </div>
+        <button class="primary" id="seance-btn" onclick="startWizard('seance')">Ajouter la séance du jour</button>
       </div>
     </div>
 
@@ -1210,7 +1302,14 @@ table tr{border-color:var(--glass-tint-strong);}
     </div>
 
     <div class="card">
-      <h2>Suivi de la semaine</h2>
+      <h2>Suivi de la semaine <button class="help-btn" onclick="toggleHelp('help-suivi')" aria-label="Aide">i</button></h2>
+      <p class="block-intro">Ton poids, tes calories moyennes par jour et ton tour de taille — un relevé hebdomadaire, pas quotidien.</p>
+      <div class="help-box" id="help-suivi">
+        <strong>Pourquoi une fois par semaine ?</strong><br>
+        Le poids fluctue beaucoup d'un jour à l'autre (eau, digestion, sommeil) : un relevé hebdomadaire donne une
+        tendance bien plus fiable qu'un suivi quotidien. Coche les semaines de cure de créatine pour pouvoir en
+        mesurer l'effet dans l'onglet Corrélations.
+      </div>
       <div class="info-line" id="suivi-week-info"></div>
       <div id="suivi-recap"></div>
       <button class="primary" id="suivi-btn" onclick="startWizard('suivi')">Ajouter mon suivi</button>
@@ -1458,6 +1557,29 @@ table tr{border-color:var(--glass-tint-strong);}
     <div class="wiz-actions">
       <button class="small" id="wiz-back" onclick="wizBack()">Retour</button>
       <button class="primary" id="wiz-next" onclick="wizNext()">Suivant</button>
+    </div>
+  </div>
+</div>
+
+<div id="share-profile-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeShareProfile()">
+  <div class="modal-card" style="max-width:420px;">
+    <h3>Partager mon profil</h3>
+    <p class="block-intro">Cette carte affiche ton pseudo, ton niveau, tes statistiques et tes records.
+      Tes mensurations, ton poids et tes notes restent privés.</p>
+    <div id="share-card-holder"></div>
+    <div class="modal-actions">
+      <button class="small" onclick="closeShareProfile()">Fermer</button>
+      <button class="small" onclick="copyProfileLink()">Copier le lien</button>
+      <button class="primary" onclick="downloadProfileCard()">Télécharger en JPG</button>
+    </div>
+  </div>
+</div>
+
+<div id="public-profile-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closePublicProfile()">
+  <div class="modal-card" style="max-width:420px;">
+    <div id="public-profile-body"></div>
+    <div class="modal-actions">
+      <button class="primary" onclick="closePublicProfile()">Retour à mon carnet</button>
     </div>
   </div>
 </div>
@@ -2019,6 +2141,7 @@ async function loadAll(){
     document.querySelector('.nav-slider')?.classList.add('ready');
   });
 
+  safe('lien de profil', checkProfileLink);
   if(!onboarded) safe('accueil du nouveau compte', startOnboarding);
   else safe('rappel hebdo', checkWeeklyReminder);
 }
@@ -2176,11 +2299,19 @@ function renderSettings(){
 
 async function saveSettingsPseudo(){
   const val = document.getElementById('settings-pseudo').value.replace(/\s+/g,' ').trim().slice(0,24);
-  if(val.length < 2){ showToast('Choisis un pseudo d\'au moins 2 caractères'); return; }
-  pseudo = val;
-  renderPseudo();
-  const ok = await save('pseudo', pseudo);
-  if(ok) showToast('Pseudo mis à jour ✓');
+  if(val.length < 2){ showToast('Choisis un pseudo d\'au moins 2 caracteres'); return; }
+  if(val === pseudo){ showToast('C\'est deja ton pseudo'); return; }
+  try{
+    // La regle "un changement par mois" est appliquee en base :
+    // la contourner depuis le navigateur ne servirait a rien.
+    const res = await db.rpc('set_pseudo', {new_pseudo: val});
+    if(res.error) throw res.error;
+    pseudo = val;
+    renderPseudo();
+    showToast('Pseudo mis a jour');
+  }catch(e){
+    showToast(e.message || 'Changement impossible');
+  }
 }
 
 // ============================================================
@@ -2501,14 +2632,19 @@ function buildExoWizard(){
 // ---- Parcours : séance ----
 function buildSeanceWizard(){
   if(exercices.length===0){
-    showToast('Ajoute d\'abord un exercice');
     return {type:'seance', index:0, steps:[{title:'Aucun exercice',
-      render:()=>`<p class="recap-empty">Commence par créer un exercice dans le bloc « Mes exercices ».</p>`}],
+      render:()=>`<p class="recap-empty">Tu dois d'abord creer au moins un exercice avant d'enregistrer une seance.</p>
+        <button class="primary" style="width:100%;border-radius:999px;" onclick="closeWizard(); startWizard('exercice');">Ajouter un exercice</button>`}],
       saveLabel:'Fermer', async finish(){}};
   }
 
-  const blocks = [];       // [{exoId, sets:[{poids,reps}]}]
-  let picked = null;       // exercice en cours de saisie
+  // Une seule seance par jour : si celle du jour existe, on la modifie.
+  const today = todayStr();
+  const existingSeance = performances.find(p=>p.date===today);
+  const blocks = existingSeance
+    ? existingSeance.exercices.map(b=>({exoId:b.exoId, sets:b.sets.map(x=>({poids:x.poids, reps:x.reps}))}))
+    : [];
+  let picked = null;
 
   const pickStep = {
     title:'Choisis un exercice',
@@ -2598,18 +2734,21 @@ function buildSeanceWizard(){
 
   return {
     type:'seance', steps:[pickStep, setsStep, recap], index:0,
-    saveLabel:'Enregistrer la séance',
+    saveLabel: existingSeance ? 'Mettre a jour la seance' : 'Enregistrer la seance',
     get blocks(){ return blocks; },
     async finish(){
-      const wk = isoWeekKey(new Date());
-      performances.push({
-        id: crypto.randomUUID(), weekKey: wk, date: todayStr(),
-        note: null, exercices: blocks
-      });
+      if(existingSeance){
+        existingSeance.exercices = blocks;
+      } else {
+        performances.push({
+          id: crypto.randomUUID(), weekKey: isoWeekKey(new Date()), date: today,
+          note: null, exercices: blocks
+        });
+      }
       await save('performances', performances);
       renderSeanceRecap(); renderPerfHistory(); renderPerfWeekSelect();
       renderPerfChart(); renderHome();
-      showToast('Séance enregistrée ✓');
+      showToast(existingSeance ? 'Seance mise a jour' : 'Seance enregistree');
     }
   };
 }
@@ -2701,27 +2840,232 @@ function renderSuiviRecap(){
 
 function renderSeanceRecap(){
   const wk = isoWeekKey(new Date());
-  const weekSeances = performances.filter(p=>p.weekKey===wk);
+  const today = todayStr();
+  const weekSeances = performances.filter(p=>p.weekKey===wk).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const todaySeance = performances.find(p=>p.date===today);
   const el = document.getElementById('seance-recap');
   const btn = document.getElementById('seance-btn');
   if(!el || !btn) return;
+
   if(weekSeances.length){
-    el.innerHTML = `<div class="recap">` + weekSeances.map(se=>{
+    el.innerHTML = '<div class="recap">' + weekSeances.map(function(se){
       const vol = se.exercices.reduce((t,b)=>t+b.sets.reduce((x,s)=>x+s.poids*s.reps,0),0);
-      const names = se.exercices.map(b=>{
-        const e = exercices.find(x=>x.id===b.exoId); return e?e.name:'—';
+      const names = se.exercices.map(function(b){
+        const e = exercices.find(x=>x.id===b.exoId); return e?e.name:'-';
       }).join(', ');
-      return `<div class="recap-row">
-        <span class="recap-label">${se.date}<br>
-          <small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">${names}</small></span>
-        <span class="recap-value">${vol}<span class="unit">kg vol.</span></span>
-      </div>`;
-    }).join('') + `</div>`;
-    btn.textContent = 'Ajouter une autre séance';
+      const isToday = se.date===today;
+      return '<div class="recap-row">' +
+        '<span class="recap-label">' + se.date +
+          (isToday ? ' <strong style="color:var(--accent-2);">- aujourd\'hui</strong>' : '') +
+          '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' + names + '</small></span>' +
+        '<span style="display:flex;align-items:center;gap:12px;">' +
+          '<span class="recap-value">' + vol + '<span class="unit">kg vol.</span></span>' +
+          '<button class="del-btn" onclick="deleteSeance(\'' + se.id + '\')" title="Supprimer cette seance">&#10005;</button>' +
+        '</span></div>';
+    }).join('') + '</div>';
   } else {
-    el.innerHTML = `<p class="recap-empty">Aucune séance enregistrée cette semaine.</p>`;
-    btn.textContent = 'Ajouter une séance';
+    el.innerHTML = '<p class="recap-empty">Aucune seance enregistree cette semaine.</p>';
   }
+
+  btn.textContent = todaySeance ? 'Modifier la seance du jour' : 'Ajouter la seance du jour';
+}
+
+// Supprimer une seance annule l'XP et les records qu'elle avait rapportes,
+// puisque tout est recalcule a partir des donnees restantes.
+async function deleteSeance(id){
+  const se = performances.find(p=>p.id===id);
+  if(!se) return;
+  if(!confirm("Supprimer cette seance ? L'XP et les records qu'elle a rapportes seront annules.")) return;
+  performances = performances.filter(p=>p.id!==id);
+  await save('performances', performances);
+  renderSeanceRecap(); renderPerfHistory(); renderPerfWeekSelect();
+  renderPerfChart(); renderHome();
+  showToast('Seance supprimee');
+}
+
+// ---- Aide contextuelle ----
+function toggleHelp(id){
+  document.getElementById(id)?.classList.toggle('open');
+}
+
+// ============================================================
+//  PARTAGE DE PROFIL
+// ============================================================
+function profileURL(){
+  return window.location.origin + window.location.pathname + '#u=' + currentUser.id;
+}
+
+function openShareProfile(){
+  document.getElementById('share-profile-modal').style.display = 'flex';
+  drawProfileCard();
+}
+function closeShareProfile(){
+  document.getElementById('share-profile-modal').style.display = 'none';
+}
+
+async function copyProfileLink(){
+  try{
+    await navigator.clipboard.writeText(profileURL());
+    showToast('Lien copie OK');
+  }catch(e){ showToast('Copie impossible'); }
+}
+
+function drawProfileCard(){
+  const W = 900, H = 1200;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const stats = computeHomeStats();
+  const info = computeLevelInfo(computeTotalXP());
+
+  ctx.fillStyle = '#0E0F11'; ctx.fillRect(0,0,W,H);
+  let g = ctx.createRadialGradient(W*0.15,0,40,W*0.15,0,700);
+  g.addColorStop(0,'rgba(255,75,43,0.34)'); g.addColorStop(1,'rgba(255,75,43,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  g = ctx.createRadialGradient(W*0.9,H*0.28,40,W*0.9,H*0.28,600);
+  g.addColorStop(0,'rgba(198,255,77,0.16)'); g.addColorStop(1,'rgba(198,255,77,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = '#F4F3EE';
+  ctx.font = '400 46px "Bebas Neue", sans-serif';
+  ctx.fillText('FONTE', 70, 100);
+  ctx.fillStyle = '#FF4B2B';
+  ctx.fillText('.', 70 + ctx.measureText('FONTE').width, 100);
+
+  ctx.font = '54px sans-serif';
+  ctx.fillText(avatar, 70, 250);
+  ctx.fillStyle = '#F4F3EE';
+  ctx.font = '400 92px "Bebas Neue", sans-serif';
+  ctx.fillText((pseudo || 'Anonyme').toUpperCase(), 70, 350);
+
+  ctx.fillStyle = '#C6FF4D';
+  ctx.font = '500 26px "IBM Plex Mono", monospace';
+  ctx.fillText('NIVEAU ' + info.level + ' - ' + rankName(info.level).toUpperCase(), 70, 400);
+
+  const cells = [
+    [stats.weeks,  'SEMAINES SUIVIES'],
+    [stats.exos,   'EXERCICES SUIVIS'],
+    [stats.volume, 'KG CETTE SEMAINE'],
+    [stats.streak, "SEMAINES D'AFFILEE"]
+  ];
+  cells.forEach(function(c,i){
+    const x = 70 + (i%2)*420, y = 500 + Math.floor(i/2)*130;
+    ctx.fillStyle = '#FF4B2B';
+    ctx.font = '400 64px "Bebas Neue", sans-serif';
+    ctx.fillText(String(c[0]), x, y);
+    ctx.fillStyle = '#8D9096';
+    ctx.font = '400 19px "IBM Plex Mono", monospace';
+    ctx.fillText(c[1], x, y+30);
+  });
+
+  const recs = exercices.map(function(e){
+    const entries = getExoEntries(e.id);
+    if(!entries.length) return null;
+    let mx = 0;
+    entries.forEach(function(en){ en.sets.forEach(function(st){ if(st.poids>mx) mx=st.poids; }); });
+    return {name:e.name, poids:mx};
+  }).filter(Boolean).sort(function(a,b){return b.poids-a.poids;}).slice(0,4);
+
+  let y = 830;
+  if(recs.length){
+    ctx.fillStyle = '#8D9096';
+    ctx.font = '400 19px "IBM Plex Mono", monospace';
+    ctx.fillText('RECORDS PERSONNELS', 70, y);
+    y += 46;
+    recs.forEach(function(r){
+      ctx.fillStyle = '#F4F3EE';
+      ctx.font = '600 26px Inter, sans-serif';
+      ctx.fillText(r.name.slice(0,26), 70, y);
+      ctx.fillStyle = '#C6FF4D';
+      ctx.font = '400 40px "Bebas Neue", sans-serif';
+      const t = r.poids + ' KG';
+      ctx.fillText(t, W - 290 - ctx.measureText(t).width, y+4);
+      y += 52;
+    });
+  }
+
+  function showCard(cv){
+    const holder = document.getElementById('share-card-holder');
+    holder.innerHTML = '';
+    holder.appendChild(cv);
+    window.__profileCard = cv;
+  }
+
+  try{
+    const qr = new QRious({value: profileURL(), size: 190, background:'#F4F3EE', foreground:'#0E0F11', level:'M'});
+    const img = new Image();
+    img.onload = function(){
+      ctx.fillStyle = '#F4F3EE';
+      ctx.fillRect(W-260, H-260, 190, 190);
+      ctx.drawImage(img, W-260, H-260, 190, 190);
+      ctx.fillStyle = '#8D9096';
+      ctx.font = '400 18px "IBM Plex Mono", monospace';
+      ctx.fillText('SCANNE POUR VOIR MON PROFIL', 70, H-190);
+      ctx.fillText('Un compte FONTE est requis.', 70, H-155);
+      showCard(canvas);
+    };
+    img.src = qr.toDataURL();
+  }catch(e){
+    console.error('QR indisponible', e);
+    showCard(canvas);
+  }
+}
+
+function downloadProfileCard(){
+  const cv = window.__profileCard;
+  if(!cv){ showToast('Carte pas encore prete'); return; }
+  cv.toBlob(function(blob){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'fonte-' + (pseudo||'profil').toLowerCase().replace(/\s+/g,'-') + '.jpg';
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    showToast('Carte telechargee OK');
+  }, 'image/jpeg', 0.92);
+}
+
+async function openPublicProfile(targetId){
+  const modal = document.getElementById('public-profile-modal');
+  const body = document.getElementById('public-profile-body');
+  body.innerHTML = '<p class="recap-empty">Chargement du profil...</p>';
+  modal.style.display = 'flex';
+  try{
+    const res = await db.rpc('get_public_profile', {target: targetId});
+    if(res.error) throw res.error;
+    const data = res.data;
+    if(!data){ body.innerHTML = '<p class="recap-empty">Ce profil n\'existe pas ou n\'est plus disponible.</p>'; return; }
+    const recs = (data.records||[]).slice(0,6);
+    body.innerHTML =
+      '<div class="pub-head">' +
+        '<div class="pub-avatar">' + (data.avatar || '&#128170;') + '</div>' +
+        '<div><div class="pub-name">' + String(data.pseudo||'Anonyme').replace(/</g,'&lt;') + '</div>' +
+        '<div class="pub-rank">Profil partage</div></div>' +
+      '</div>' +
+      '<div class="pub-stats">' +
+        '<div><span class="pub-stat-num">' + data.semaines + '</span><span class="pub-stat-lab">Semaines suivies</span></div>' +
+        '<div><span class="pub-stat-num">' + data.exercices + '</span><span class="pub-stat-lab">Exercices suivis</span></div>' +
+        '<div><span class="pub-stat-num">' + Math.round(data.volume) + '</span><span class="pub-stat-lab">Kg cette semaine</span></div>' +
+        '<div><span class="pub-stat-num">' + data.streak + '</span><span class="pub-stat-lab">Semaines d\'affilee</span></div>' +
+      '</div>' +
+      (recs.length
+        ? '<div class="recap">' + recs.map(function(r){
+            return '<div class="recap-row"><span class="recap-label">' +
+              String(r.exercice).replace(/</g,'&lt;') +
+              '</span><span class="recap-value">' + r.poids + '<span class="unit">kg</span></span></div>';
+          }).join('') + '</div>'
+        : '<p class="recap-empty">Aucun record enregistre pour l\'instant.</p>');
+  }catch(e){
+    console.error(e);
+    body.innerHTML = '<p class="recap-empty">Impossible de charger ce profil.</p>';
+  }
+}
+function closePublicProfile(){
+  document.getElementById('public-profile-modal').style.display = 'none';
+  history.replaceState(null, '', window.location.pathname);
+}
+function checkProfileLink(){
+  const m = window.location.hash.match(/^#u=([0-9a-f-]{36})$/i);
+  if(m && m[1] !== currentUser.id) openPublicProfile(m[1]);
 }
 
 function openDeleteAccountModal(){
@@ -4261,10 +4605,9 @@ function renderPerfHistory(){
       <td><span class="sem-badge">${weekShort(e.weekKey)}</span>${e.date}${note?` <button class="note-icon" onclick="showNote(getSeanceNote('${e.seanceId}'))" title="Voir la note de la séance">📝</button>`:''}</td>
       <td class="sets-cell">${chips}</td>
       <td>${volume}</td>
-      <td><button class="del-btn" onclick="deleteExoFromSeance('${e.seanceId}','${exoId}')">✕</button></td>
     </tr>`;
   }).join('');
-  el.innerHTML = `<table><thead><tr><th>Semaine</th><th>Séries</th><th>Volume</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table><thead><tr><th>Semaine</th><th>Séries</th><th>Volume</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderPerfWeekSelect(){
