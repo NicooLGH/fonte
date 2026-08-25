@@ -19,12 +19,12 @@
   --ink-soft:#8D9096;
   --ink-invert:#0E0F11;
   --accent:#FF4B2B;
-  --accent-2:#C6FF4D;
+  --accent-2:#4CC9F0;
   --hazard:#FFD400;
   --line:#26292E;
   --line-strong:#383C42;
   --accent-rgb:255,75,43;
-  --accent-2-rgb:198,255,77;
+  --accent-2-rgb:76,201,240;
   --glass-bg:rgba(255,255,255,0.045);
   --glass-solid:rgba(38,42,48,0.5);
   --glass-border:rgba(255,255,255,0.09);
@@ -48,12 +48,12 @@
   --ink-soft:#6A6F76;
   --ink-invert:#FFFFFF;
   --accent:#E13A18;
-  --accent-2:#5F8C00;
+  --accent-2:#0369A1;
   --hazard:#C79A00;
   --line:#E2E0DA;
   --line-strong:#CBC8C0;
   --accent-rgb:225,58,24;
-  --accent-2-rgb:95,140,0;
+  --accent-2-rgb:3,105,161;
   --glass-bg:rgba(255,255,255,0.55);
   --glass-solid:rgba(255,255,255,0.72);
   --glass-border:rgba(0,0,0,0.09);
@@ -193,7 +193,7 @@ nav.tabs button.active{color:var(--ink-invert);}
 .card h2{font-family:var(--font-display);font-weight:400;text-transform:uppercase;font-size:21px;letter-spacing:0.03em;margin:0 0 16px;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;}
 .card h2 .tag{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);text-transform:none;letter-spacing:0;}
 
-.info-line{font-family:var(--font-mono);font-size:12px;color:var(--accent-2);background:rgba(198,255,77,0.08);border:1px solid rgba(198,255,77,0.25);border-radius:2px;padding:8px 12px;margin-bottom:10px;display:inline-block;}
+.info-line{font-family:var(--font-mono);font-size:12px;color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.08);border:1px solid rgba(var(--accent-2-rgb),0.25);border-radius:2px;padding:8px 12px;margin-bottom:10px;display:inline-block;}
 
 .toggle-pill{display:inline-flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--line-strong);color:var(--ink-soft);font-family:var(--font-body);font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:20px;cursor:pointer;margin:0 0 14px;transition:border-color .15s ease,color .15s ease;}
 .toggle-pill:hover{border-color:var(--accent-2);color:var(--ink);}
@@ -307,7 +307,7 @@ svg.chart{width:100%;height:170px;overflow:visible;}
 .pr-card{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:16px;text-align:center;transition:border-color .2s ease;}
 .pr-card:hover{border-color:var(--line-strong);}
 .pr-card.fresh{border-color:var(--accent-2);animation:prPulse 2s ease-in-out infinite;}
-@keyframes prPulse{0%,100%{box-shadow:0 0 14px rgba(198,255,77,0.2);}50%{box-shadow:0 0 30px rgba(198,255,77,0.4);}}
+@keyframes prPulse{0%,100%{box-shadow:0 0 14px rgba(var(--accent-2-rgb),0.2);}50%{box-shadow:0 0 30px rgba(var(--accent-2-rgb),0.4);}}
 .pr-trophy{font-size:28px;margin-bottom:8px;}
 
 .pr-name{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);margin-bottom:4px;}
@@ -342,7 +342,7 @@ input[type="range"]{accent-color:var(--accent);}
 .week-row .wr-name{font-family:var(--font-mono);font-size:13px;flex:1;min-width:140px;}
 .week-row .wr-val{font-family:var(--font-display);font-size:20px;min-width:70px;text-align:right;}
 .delta-pill{font-family:var(--font-mono);font-size:11px;padding:2px 7px;border-radius:20px;white-space:nowrap;}
-.delta-pill.up{background:rgba(198,255,77,0.12);color:var(--accent-2);}
+.delta-pill.up{background:rgba(var(--accent-2-rgb),0.12);color:var(--accent-2);}
 .delta-pill.down{background:rgba(255,75,43,0.12);color:var(--accent);}
 .delta-pill.flat{background:var(--surface-2);color:var(--ink-soft);}
 .week-row .wr-goal{flex-basis:100%;}
@@ -947,6 +947,88 @@ button.primary:disabled:hover{transform:none;box-shadow:none;}
   font-size:13.5px;line-height:1.5;color:var(--ink-soft);margin:0 0 16px;
 }
 
+.footer-version{
+  display:block;margin-top:6px;opacity:.7;
+  font-family:var(--font-mono);font-size:10px;letter-spacing:0.08em;
+}
+
+/* ---- Semaine en cours dans la navbar ---- */
+.nav-week{
+  font-family:var(--font-mono);font-size:11.5px;font-weight:500;
+  color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.1);
+  border:1px solid rgba(var(--accent-2-rgb),0.3);
+  padding:6px 12px;border-radius:999px;white-space:nowrap;flex-shrink:0;
+}
+@media(max-width:1150px){ .nav-week{display:none;} }
+
+.pseudo-rules{
+  font-family:var(--font-mono);font-size:10.5px;line-height:1.5;
+  color:var(--ink-soft);opacity:.75;margin:0 0 14px;
+}
+
+/* ---- Amis ---- */
+.tab-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:17px;height:17px;padding:0 5px;margin-left:5px;
+  border-radius:999px;background:var(--accent);color:#fff;
+  font-family:var(--font-mono);font-size:10px;font-weight:500;
+  vertical-align:middle;
+}
+nav.tabs button.active .tab-badge{background:var(--accent);color:#fff;}
+
+.search-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.search-row input{
+  flex:1;min-width:180px;padding:11px 16px;border-radius:999px;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink);font-family:var(--font-body);font-size:14px;
+}
+.search-row input:focus{outline:none;border-color:var(--accent);}
+.search-row .primary{border-radius:999px;padding:11px 22px;}
+
+.person-row{
+  display:flex;align-items:center;gap:14px;
+  padding:12px 0;border-bottom:1px solid var(--hairline);
+}
+.person-row:last-child{border-bottom:none;}
+.person-avatar{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:21px;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+  cursor:pointer;
+}
+.person-info{flex:1;min-width:0;}
+.person-name{
+  font-family:var(--font-body);font-weight:600;font-size:14.5px;color:var(--ink);
+  cursor:pointer;
+}
+.person-name:hover{color:var(--accent-2);}
+.person-meta{
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:3px;
+}
+.person-meta .actif{color:var(--accent-2);}
+.person-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;}
+.person-actions button{
+  font-family:var(--font-body);font-size:12px;font-weight:600;
+  padding:7px 14px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);color:var(--ink-soft);
+}
+.person-actions button:hover{color:var(--ink);border-color:rgba(255,255,255,0.2);}
+.person-actions button.accent{background:var(--accent);border-color:var(--accent);color:var(--ink-invert);}
+.person-actions button.accent:hover{background:#ff6a4e;color:var(--ink-invert);}
+.person-actions .etat{
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);
+  padding:7px 0;opacity:.75;
+}
+
+.amis-banner{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.amis-banner-num{
+  font-family:var(--font-display);font-size:34px;color:var(--accent-2);line-height:1;
+}
+.amis-banner-text{font-size:14px;color:var(--ink-soft);line-height:1.45;}
+.amis-banner-text strong{color:var(--ink);}
+
 /* ---- Partage de profil ---- */
 .profile-share{
   display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
@@ -1075,7 +1157,9 @@ table tr{border-color:var(--glass-tint-strong);}
       <button data-view="suivi">Suivi hebdo</button>
       <button data-view="records">Records</button>
       <button data-view="correlations">Corrélations</button>
+      <button data-view="amis">Amis <span class="tab-badge" id="tab-badge-amis" style="display:none;"></span></button>
     </nav>
+    <span class="nav-week" id="nav-week"></span>
     <button class="nav-avatar" id="nav-avatar" onclick="openSettings()" title="Réglages du compte">💪</button>
     <button class="nav-logout" onclick="signOut()" title="Se déconnecter">⏻</button>
     <button class="nav-burger" id="nav-burger" onclick="toggleBurger()" aria-label="Menu">
@@ -1090,6 +1174,7 @@ table tr{border-color:var(--glass-tint-strong);}
     <button class="burger-item" data-burger-view="suivi">Suivi hebdo</button>
     <button class="burger-item" data-burger-view="records">Records</button>
     <button class="burger-item" data-burger-view="correlations">Corrélations</button>
+    <button class="burger-item" data-burger-view="amis">Amis <span class="tab-badge" id="burger-badge-amis" style="display:none;"></span></button>
     <div class="burger-sep"></div>
     <button class="burger-item burger-settings" onclick="openSettings(); closeBurger();">
       <span id="burger-avatar">💪</span> Réglages du compte
@@ -1110,7 +1195,7 @@ table tr{border-color:var(--glass-tint-strong);}
             <span class="profile-level-num" id="hero-level-num">0</span>
           </div>
           <div class="profile-identity">
-            <div class="profile-eyebrow">Carnet de performance personnel</div>
+            <div class="profile-eyebrow">Carnet de performance personnel · <span id="profile-week"></span></div>
             <h1 class="profile-name" id="hero-pseudo"></h1>
             <div class="profile-rank-row">
               <span class="profile-rank" id="hero-level-rank">Débutant</span>
@@ -1145,6 +1230,7 @@ table tr{border-color:var(--glass-tint-strong);}
     </section>
     <div class="card" id="next-milestone" style="display:none;"></div>
     <div class="card" id="suggested-seance" style="display:none;"></div>
+    <div class="card" id="amis-activity" style="display:none;"></div>
     <div id="home-reminder"></div>
     <div class="card" id="monthly-summary"></div>
 
@@ -1367,7 +1453,6 @@ table tr{border-color:var(--glass-tint-strong);}
   <div class="view" id="view-correlations">
     <div class="card">
       <h2>Calories vs Volume soulevé</h2>
-      <p style="font-family:var(--font-body);font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">Les semaines surlignées en vert sont des semaines de cure de créatine.</p>
       <div id="corr-calories-volume"></div>
     </div>
     <div class="card">
@@ -1375,6 +1460,42 @@ table tr{border-color:var(--glass-tint-strong);}
       <div id="corr-poids-volume"></div>
     </div>
   </div>
+  <div class="view" id="view-amis">
+    <div class="card">
+      <h2>Trouver quelqu'un <button class="help-btn" onclick="toggleHelp('help-amis')" aria-label="Aide">i</button></h2>
+      <p class="block-intro">Cherche une personne par son pseudo pour lui envoyer une demande d'ami.</p>
+      <div class="help-box" id="help-amis">
+        <strong>Ce que voient les autres</strong><br>
+        Sans être ton ami, une personne ne voit que ton pseudo, ton avatar, ton niveau et ta série de semaines.
+        Une fois amis, elle voit en plus tes semaines suivies, tes exercices, ton volume de la semaine et tes records.<br><br>
+        <strong>Ce que personne ne voit jamais :</strong> tes mensurations, ton poids, tes calories et tes notes.
+        Ces données restent strictement privées, même entre amis.
+      </div>
+      <div class="search-row">
+        <input type="text" id="amis-search" placeholder="Pseudo à rechercher…" autocomplete="off"
+               onkeydown="if(event.key==='Enter') chercherAmis()">
+        <button class="primary" onclick="chercherAmis()">Chercher</button>
+      </div>
+      <div id="amis-search-results"></div>
+    </div>
+
+    <div class="card" id="amis-requests-card" style="display:none;">
+      <h2>Demandes reçues</h2>
+      <div id="amis-requests"></div>
+    </div>
+
+    <div class="card">
+      <h2>Mes amis</h2>
+      <p class="block-intro">Leur régularité, pas leurs charges — comparer des poids entre gabarits différents n'apprend rien d'utile.</p>
+      <div id="amis-list"></div>
+    </div>
+
+    <div class="card" id="amis-sent-card" style="display:none;">
+      <h2>Demandes envoyées</h2>
+      <div id="amis-sent"></div>
+    </div>
+  </div>
+
   <div class="view" id="view-reglages">
     <div class="card">
       <h2>Profil</h2>
@@ -1388,7 +1509,7 @@ table tr{border-color:var(--glass-tint-strong);}
       <div class="settings-row">
         <div class="settings-label">
           <strong>Pseudo</strong>
-          <span>Le nom affiché sur ta carte de profil.</span>
+          <span>Unique, et modifiable une fois par mois.<br>Entre 2 et 24 caractères : lettres, chiffres, espaces, tirets et points.</span>
         </div>
         <div class="settings-control">
           <input type="text" id="settings-pseudo" maxlength="24" placeholder="Ton pseudo">
@@ -1471,7 +1592,8 @@ table tr{border-color:var(--glass-tint-strong);}
       <button class="ghost" onclick="generatePDF()">📄 Exporter un bilan (PDF)</button>
       <button class="ghost" onclick="openShareConfigModal()">🖼️ Partager ma progression</button>
     </div>
-    <div class="footer-note">FONTE<span>.</span> — Ton carnet, synchronisé et privé.</div>
+    <div class="footer-note">FONTE<span>.</span> — Ton carnet, synchronisé et privé.
+      <span class="footer-version" id="footer-version"></span></div>
   </footer>
 </div>
 
@@ -1482,9 +1604,11 @@ table tr{border-color:var(--glass-tint-strong);}
     <div class="onb-step" id="onb-step-1">
       <div class="onb-eyebrow">Étape 1 sur 2</div>
       <h2 class="onb-title">Choisis ton pseudo</h2>
-      <p class="onb-text">C'est le nom qui s'affichera en haut de ton carnet. Tu pourras le changer quand tu veux.</p>
+      <p class="onb-text">C'est le nom qui s'affichera en haut de ton carnet, et celui par lequel tes amis pourront te trouver.
+        Il doit être unique — si quelqu'un l'a déjà pris, il faudra en choisir un autre.</p>
       <input type="text" id="onb-pseudo" maxlength="24" placeholder="ex : Maxime"
              onkeydown="if(event.key==='Enter') onbNext()">
+      <p class="pseudo-rules">Entre 2 et 24 caractères. Lettres, chiffres, espaces, tirets et points uniquement.</p>
       <div id="onb-error" class="auth-error" style="display:none;"></div>
       <button class="primary onb-btn" onclick="onbNext()">Continuer</button>
     </div>
@@ -2132,6 +2256,8 @@ async function loadAll(){
   // donc une largeur nulle et la pastille ne pouvait pas se placer.
   // On la positionne maintenant que tout est visible et mesurable.
   safe('avatar', renderAvatar);
+  safe('version et semaine', renderVersionAndWeek);
+  chargerAmis();
   requestAnimationFrame(()=>{
     positionNavSlider();
     document.querySelector('.nav-slider')?.classList.add('ready');
@@ -2142,7 +2268,18 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
+const APP_VERSION = 'v1.7.0';
 const numOrNull = v => v==null ? null : Number(v);
+
+function renderVersionAndWeek(){
+  const wk = isoWeekKey(new Date());
+  const v = document.getElementById('footer-version');
+  if(v) v.textContent = APP_VERSION;
+  const nw = document.getElementById('nav-week');
+  if(nw) nw.textContent = 'Semaine ' + weekLabel(wk);
+  const pw = document.getElementById('profile-week');
+  if(pw) pw.textContent = 'Semaine ' + weekLabel(wk);
+}
 
 // Dimanche selon l'heure locale de l'appareil : un utilisateur
 // à l'étranger doit voir son bonus tomber son dimanche à lui.
@@ -2207,26 +2344,50 @@ function startOnboarding(){
   setTimeout(()=>document.getElementById('onb-pseudo').focus(), 200);
 }
 
-function onbNext(){
-  const val = document.getElementById('onb-pseudo').value.replace(/\s+/g,' ').trim();
+async function onbNext(){
+  const val = document.getElementById('onb-pseudo').value.replace(/\s+/g,' ').trim().slice(0,24);
   const err = document.getElementById('onb-error');
-  if(val.length < 2){
-    err.textContent = 'Choisis un pseudo d\'au moins 2 caractères.';
-    err.style.display = 'block';
-    return;
-  }
+  const btn = document.querySelector('#onb-step-1 .onb-btn');
+
+  const souci = validerPseudo(val);
+  if(souci){ err.textContent = souci; err.style.display = 'block'; return; }
+
+  // On reserve le pseudo tout de suite : c'est la fonction en base
+  // qui garantit l'unicite, pas le navigateur.
   err.style.display = 'none';
-  pseudo = val.slice(0,24);
-  document.getElementById('onb-step-1').style.display = 'none';
-  document.getElementById('onb-step-2').style.display = 'block';
-  document.getElementById('onb-progress').style.width = '100%';
+  btn.disabled = true; btn.textContent = 'Verification...';
+  try{
+    const res = await db.rpc('set_pseudo', {new_pseudo: val});
+    if(res.error) throw res.error;
+    pseudo = val;
+    document.getElementById('onb-step-1').style.display = 'none';
+    document.getElementById('onb-step-2').style.display = 'block';
+    document.getElementById('onb-progress').style.width = '100%';
+  }catch(e){
+    err.textContent = e.message || 'Ce pseudo est indisponible.';
+    err.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Continuer';
+  }
+}
+
+// Regles de pseudo, verifiees aussi en base
+const PSEUDO_REGLES = 'Entre 2 et 24 caracteres. Lettres, chiffres, espaces, tirets et points uniquement.';
+function validerPseudo(v){
+  if(v.length < 2)  return 'Le pseudo doit faire au moins 2 caracteres.';
+  if(v.length > 24) return 'Le pseudo ne peut pas depasser 24 caracteres.';
+  if(!/^[A-Za-z0-9 _.\-]+$/.test(v))
+    return 'Caracteres autorises : lettres, chiffres, espaces, tirets et points.';
+  return null;
 }
 
 async function finishOnboarding(withDemo){
   avatar = onbAvatar;
   try{
+    // Le pseudo a deja ete enregistre a l'etape 1 par set_pseudo,
+    // qui seul garantit l'unicite. On ne touche qu'a l'avatar ici.
     check(await db.from('profiles').upsert({
-      id: uid(), pseudo, avatar, onboarded: true, updated_at: new Date().toISOString()
+      id: uid(), avatar, onboarded: true, updated_at: new Date().toISOString()
     }));
   }catch(e){ console.error(e); showToast('⚠️ Enregistrement impossible'); }
 
@@ -2249,7 +2410,7 @@ const DEMO_STEPS = [
   {icon:'🏋️', title:'Performances',
    text:"Crée tes exercices, puis enregistre tes séances série par série. Le carnet suit ta progression vers tes objectifs de charge et détecte tes records."},
   {icon:'⚖️', title:'Suivi hebdo',
-   text:"Poids, calories et tour de taille, une fois par semaine. Coche aussi tes semaines de créatine pour pouvoir en mesurer l'effet plus tard."},
+   text:"Poids, calories et tour de taille, une fois par semaine. Faire ton bilan le dimanche rapporte un bonus d'XP."},
   {icon:'🏆', title:'Records',
    text:"Tes meilleures charges par exercice, ta grille d'assiduité sur l'année et tes jalons de régularité. C'est la page qui récompense la constance."},
   {icon:'📊', title:'Corrélations',
@@ -2307,7 +2468,8 @@ function renderSettings(){
 
 async function saveSettingsPseudo(){
   const val = document.getElementById('settings-pseudo').value.replace(/\s+/g,' ').trim().slice(0,24);
-  if(val.length < 2){ showToast('Choisis un pseudo d\'au moins 2 caracteres'); return; }
+  const souci = validerPseudo(val);
+  if(souci){ showToast(souci); return; }
   if(val === pseudo){ showToast('C\'est deja ton pseudo'); return; }
   try{
     // La regle "un changement par mois" est appliquee en base :
@@ -2921,7 +3083,7 @@ function drawProfileCard(){
   g.addColorStop(0,'rgba(255,75,43,0.34)'); g.addColorStop(1,'rgba(255,75,43,0)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   g = ctx.createRadialGradient(W*0.9,H*0.28,40,W*0.9,H*0.28,600);
-  g.addColorStop(0,'rgba(198,255,77,0.16)'); g.addColorStop(1,'rgba(198,255,77,0)');
+  g.addColorStop(0,'rgba(76,201,240,0.16)'); g.addColorStop(1,'rgba(76,201,240,0)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
   ctx.fillStyle = '#F4F3EE';
@@ -2936,7 +3098,7 @@ function drawProfileCard(){
   ctx.font = '400 92px "Bebas Neue", sans-serif';
   ctx.fillText((pseudo || 'Anonyme').toUpperCase(), 70, 350);
 
-  ctx.fillStyle = '#C6FF4D';
+  ctx.fillStyle = '#4CC9F0';
   ctx.font = '500 26px "IBM Plex Mono", monospace';
   ctx.fillText('NIVEAU ' + info.level + ' - ' + rankName(info.level).toUpperCase(), 70, 400);
 
@@ -2974,7 +3136,7 @@ function drawProfileCard(){
       ctx.fillStyle = '#F4F3EE';
       ctx.font = '600 26px Inter, sans-serif';
       ctx.fillText(r.name.slice(0,26), 70, y);
-      ctx.fillStyle = '#C6FF4D';
+      ctx.fillStyle = '#4CC9F0';
       ctx.font = '400 40px "Bebas Neue", sans-serif';
       const t = r.poids + ' KG';
       ctx.fillText(t, W - 290 - ctx.measureText(t).width, y+4);
@@ -3022,48 +3184,254 @@ function downloadProfileCard(){
   }, 'image/jpeg', 0.92);
 }
 
-async function openPublicProfile(targetId){
+async function openProfile(targetId){
   const modal = document.getElementById('public-profile-modal');
   const body = document.getElementById('public-profile-body');
   body.innerHTML = '<p class="recap-empty">Chargement du profil...</p>';
   modal.style.display = 'flex';
   try{
-    const res = await db.rpc('get_public_profile', {target: targetId});
+    const res = await db.rpc('get_profile', {target: targetId});
     if(res.error) throw res.error;
-    const data = res.data;
-    if(!data){ body.innerHTML = '<p class="recap-empty">Ce profil n\'existe pas ou n\'est plus disponible.</p>'; return; }
-    const recs = (data.records||[]).slice(0,6);
-    body.innerHTML =
+    const d = res.data;
+    if(!d){ body.innerHTML = '<p class="recap-empty">Ce profil n\'existe pas ou n\'est plus disponible.</p>'; return; }
+
+    const streak = d.streak || 0;
+    let html =
       '<div class="pub-head">' +
-        '<div class="pub-avatar">' + (data.avatar || '&#128170;') + '</div>' +
-        '<div><div class="pub-name">' + String(data.pseudo||'Anonyme').replace(/</g,'&lt;') + '</div>' +
-        '<div class="pub-rank">Profil partage</div></div>' +
-      '</div>' +
-      '<div class="pub-stats">' +
-        '<div><span class="pub-stat-num">' + data.semaines + '</span><span class="pub-stat-lab">Semaines suivies</span></div>' +
-        '<div><span class="pub-stat-num">' + data.exercices + '</span><span class="pub-stat-lab">Exercices suivis</span></div>' +
-        '<div><span class="pub-stat-num">' + Math.round(data.volume) + '</span><span class="pub-stat-lab">Kg cette semaine</span></div>' +
-        '<div><span class="pub-stat-num">' + data.streak + '</span><span class="pub-stat-lab">Semaines d\'affilee</span></div>' +
-      '</div>' +
-      (recs.length
-        ? '<div class="recap">' + recs.map(function(r){
-            return '<div class="recap-row"><span class="recap-label">' +
-              String(r.exercice).replace(/</g,'&lt;') +
-              '</span><span class="recap-value">' + r.poids + '<span class="unit">kg</span></span></div>';
-          }).join('') + '</div>'
-        : '<p class="recap-empty">Aucun record enregistre pour l\'instant.</p>');
+        '<div class="pub-avatar">' + (d.avatar || '&#128170;') + '</div>' +
+        '<div><div class="pub-name">' + String(d.pseudo||'Anonyme').replace(/</g,'&lt;') + '</div>' +
+        '<div class="pub-rank">' + (streak>0 ? streak + ' semaine' + (streak>1?'s':'') + " d'affilee" : 'Aucune serie en cours') + '</div></div>' +
+      '</div>';
+
+    if(d.detail){
+      const recs = d.records || [];
+      html +=
+        '<div class="pub-stats">' +
+          '<div><span class="pub-stat-num">' + d.semaines + '</span><span class="pub-stat-lab">Semaines suivies</span></div>' +
+          '<div><span class="pub-stat-num">' + d.exercices + '</span><span class="pub-stat-lab">Exercices suivis</span></div>' +
+          '<div><span class="pub-stat-num">' + Math.round(d.volume) + '</span><span class="pub-stat-lab">Kg cette semaine</span></div>' +
+          '<div><span class="pub-stat-num">' + streak + '</span><span class="pub-stat-lab">Semaines d\'affilee</span></div>' +
+        '</div>' +
+        (recs.length
+          ? '<div class="recap">' + recs.map(function(r){
+              return '<div class="recap-row"><span class="recap-label">' +
+                String(r.exercice).replace(/</g,'&lt;') +
+                '</span><span class="recap-value">' + r.poids + '<span class="unit">kg</span></span></div>';
+            }).join('') + '</div>'
+          : '<p class="recap-empty">Aucun record enregistre pour l\'instant.</p>');
+    } else {
+      html += '<p class="recap-empty">Ce profil est prive. Deviens ami avec cette personne pour voir ses ' +
+              'statistiques et ses records. Ses mensurations et son suivi resteront prives dans tous les cas.</p>';
+    }
+
+    // Action selon la relation
+    let action = '';
+    if(d.relation === 'inconnu')
+      action = '<button class="primary" style="width:100%;border-radius:999px;margin-top:6px;" onclick="demanderAmiDepuisProfil(\'' + d.id + '\')">Ajouter en ami</button>';
+    else if(d.relation === 'demande_envoyee')
+      action = '<p class="recap-empty" style="margin:0;">Demande envoyee, en attente de reponse.</p>';
+    else if(d.relation === 'demande_recue')
+      action = '<button class="primary" style="width:100%;border-radius:999px;margin-top:6px;" onclick="accepterAmiDepuisProfil(\'' + d.id + '\')">Accepter sa demande</button>';
+    else if(d.relation === 'ami')
+      action = '<p class="recap-empty" style="margin:0;">Vous etes amis.</p>';
+    html += action;
+
+    body.innerHTML = html;
   }catch(e){
     console.error(e);
     body.innerHTML = '<p class="recap-empty">Impossible de charger ce profil.</p>';
   }
 }
+
+async function demanderAmiDepuisProfil(id){
+  await demanderAmi(id);
+  openProfile(id);
+}
+async function accepterAmiDepuisProfil(id){
+  await accepterAmi(id);
+  openProfile(id);
+}
+
 function closePublicProfile(){
   document.getElementById('public-profile-modal').style.display = 'none';
   history.replaceState(null, '', window.location.pathname);
 }
 function checkProfileLink(){
   const m = window.location.hash.match(/^#u=([0-9a-f-]{36})$/i);
-  if(m && m[1] !== currentUser.id) openPublicProfile(m[1]);
+  if(m && m[1] !== currentUser.id) openProfile(m[1]);
+}
+
+// ============================================================
+//  AMIS
+// ============================================================
+let amisData = {amis:[], attente:[], envoyes:[], actifs_semaine:0};
+
+async function chargerAmis(){
+  try{
+    const res = await db.rpc('mes_amis');
+    if(res.error) throw res.error;
+    amisData = res.data || {amis:[], attente:[], envoyes:[], actifs_semaine:0};
+  }catch(e){
+    console.error('Chargement des amis impossible', e);
+    return;
+  }
+  renderAmis();
+  renderAmisBadge();
+  renderAmisActivity();
+}
+
+function renderAmisBadge(){
+  const n = (amisData.attente||[]).length;
+  ['tab-badge-amis','burger-badge-amis'].forEach(function(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = n;
+    el.style.display = n ? 'inline-flex' : 'none';
+  });
+}
+
+function personRow(p, actions, meta){
+  return '<div class="person-row">' +
+    '<div class="person-avatar" onclick="openProfile(\'' + p.id + '\')">' + (p.avatar||'&#128170;') + '</div>' +
+    '<div class="person-info">' +
+      '<div class="person-name" onclick="openProfile(\'' + p.id + '\')">' +
+        String(p.pseudo||'').replace(/</g,'&lt;') + '</div>' +
+      (meta ? '<div class="person-meta">' + meta + '</div>' : '') +
+    '</div>' +
+    '<div class="person-actions">' + actions + '</div>' +
+  '</div>';
+}
+
+function renderAmis(){
+  // Demandes recues
+  const reqCard = document.getElementById('amis-requests-card');
+  const reqEl = document.getElementById('amis-requests');
+  if((amisData.attente||[]).length){
+    reqCard.style.display = 'block';
+    reqEl.innerHTML = amisData.attente.map(function(p){
+      return personRow(p,
+        '<button class="accent" onclick="accepterAmi(\'' + p.id + '\')">Accepter</button>' +
+        '<button onclick="retirerAmi(\'' + p.id + '\')">Refuser</button>',
+        'Souhaite devenir ton ami');
+    }).join('');
+  } else {
+    reqCard.style.display = 'none';
+  }
+
+  // Liste d'amis
+  const listEl = document.getElementById('amis-list');
+  if((amisData.amis||[]).length){
+    listEl.innerHTML = amisData.amis.map(function(p){
+      const streak = p.streak || 0;
+      const meta = (p.actif_semaine
+          ? '<span class="actif">&#9679; entraine cette semaine</span>'
+          : 'pas encore actif cette semaine') +
+        (streak > 0 ? ' &middot; ' + streak + ' semaine' + (streak>1?'s':'') + " d'affilee" : '');
+      return personRow(p,
+        '<button onclick="openProfile(\'' + p.id + '\')">Voir</button>' +
+        '<button onclick="retirerAmi(\'' + p.id + '\')">Retirer</button>',
+        meta);
+    }).join('');
+  } else {
+    listEl.innerHTML = '<p class="recap-empty">Aucun ami pour l\'instant. Cherche quelqu\'un par son pseudo ci-dessus, ou partage ta carte de profil.</p>';
+  }
+
+  // Demandes envoyees
+  const sentCard = document.getElementById('amis-sent-card');
+  const sentEl = document.getElementById('amis-sent');
+  if((amisData.envoyes||[]).length){
+    sentCard.style.display = 'block';
+    sentEl.innerHTML = amisData.envoyes.map(function(p){
+      return personRow(p,
+        '<button onclick="retirerAmi(\'' + p.id + '\')">Annuler</button>',
+        'En attente de reponse');
+    }).join('');
+  } else {
+    sentCard.style.display = 'none';
+  }
+}
+
+// Bandeau d'activite sur l'accueil
+function renderAmisActivity(){
+  const el = document.getElementById('amis-activity');
+  if(!el) return;
+  const total = (amisData.amis||[]).length;
+  if(total === 0){ el.style.display = 'none'; return; }
+  const n = amisData.actifs_semaine || 0;
+  let texte;
+  if(n === 0){
+    texte = "<strong>Personne n'a encore bouge cette semaine</strong> parmi tes amis. A toi d'ouvrir le bal.";
+  } else if(n === total){
+    texte = '<strong>Tous tes amis</strong> se sont entraines cette semaine.';
+  } else {
+    texte = n > 1
+      ? '<strong>' + n + ' de tes ' + total + ' amis</strong> se sont entraines cette semaine.'
+      : '<strong>1 de tes ' + total + ' amis</strong> s\'est entraine cette semaine.';
+  }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="amis-banner">' +
+    '<span class="amis-banner-num">' + n + '</span>' +
+    '<span class="amis-banner-text">' + texte + '</span></div>';
+}
+
+// ---- Recherche ----
+async function chercherAmis(){
+  const q = document.getElementById('amis-search').value.trim();
+  const el = document.getElementById('amis-search-results');
+  if(q.length < 2){ el.innerHTML = '<p class="recap-empty">Saisis au moins 2 caracteres.</p>'; return; }
+  el.innerHTML = '<p class="recap-empty">Recherche en cours...</p>';
+  try{
+    const res = await db.rpc('chercher_utilisateurs', {q: q});
+    if(res.error) throw res.error;
+    const list = res.data || [];
+    if(!list.length){
+      el.innerHTML = '<p class="recap-empty">Aucun compte ne correspond a ce pseudo.</p>';
+      return;
+    }
+    el.innerHTML = list.map(function(p){
+      let actions;
+      if(p.relation === 'ami') actions = '<span class="etat">Deja ami</span>';
+      else if(p.relation === 'demande_envoyee') actions = '<span class="etat">Demande envoyee</span>';
+      else if(p.relation === 'demande_recue')
+        actions = '<button class="accent" onclick="accepterAmi(\'' + p.id + '\')">Accepter</button>';
+      else actions = '<button class="accent" onclick="demanderAmi(\'' + p.id + '\')">Ajouter</button>';
+      return personRow(p, actions, null);
+    }).join('');
+  }catch(e){
+    console.error(e);
+    el.innerHTML = '<p class="recap-empty">Recherche impossible pour le moment.</p>';
+  }
+}
+
+// ---- Actions ----
+async function demanderAmi(id){
+  try{
+    const res = await db.rpc('demander_ami', {target: id});
+    if(res.error) throw res.error;
+    showToast(res.data && res.data.relation === 'ami' ? 'Vous etes desormais amis' : 'Demande envoyee');
+    await chargerAmis();
+    chercherAmis();
+  }catch(e){ showToast(e.message || 'Action impossible'); }
+}
+
+async function accepterAmi(id){
+  try{
+    const res = await db.rpc('accepter_ami', {demandeur: id});
+    if(res.error) throw res.error;
+    showToast('Demande acceptee');
+    await chargerAmis();
+  }catch(e){ showToast(e.message || 'Action impossible'); }
+}
+
+async function retirerAmi(id){
+  try{
+    const res = await db.rpc('retirer_ami', {autre: id});
+    if(res.error) throw res.error;
+    showToast('Relation supprimee');
+    await chargerAmis();
+    const sr = document.getElementById('amis-search-results');
+    if(sr && sr.innerHTML.trim()) chercherAmis();
+  }catch(e){ showToast(e.message || 'Action impossible'); }
 }
 
 function openDeleteAccountModal(){
@@ -3300,6 +3668,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     if(btn.dataset.view==='mensurations') renderCompareSelects();
     if(btn.dataset.view==='records') renderRecordsTab();
     if(btn.dataset.view==='correlations') renderCorrelations();
+    if(btn.dataset.view==='amis') chargerAmis();
   });
 });
 window.addEventListener('resize', positionNavSlider);
@@ -3563,7 +3932,7 @@ function renderRecordsTab(){
   }).join('')}</div>`;
 }
 
-// ---- Corrélations (calories / poids / volume / créatine) ----
+// ---- Corrélations (calories / poids / volume) ----
 function computeWeeklyVolumeMap(){
   const map = {};
   performances.forEach(se=>{
@@ -3630,7 +3999,6 @@ function drawDualChart(holderId, rows, fieldA, fieldB, labelA, labelB){
     <div style="display:flex;gap:16px;margin-bottom:10px;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);flex-wrap:wrap;">
       <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:50%;margin-right:5px;"></span>${labelA}</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent-2);border-radius:50%;margin-right:5px;"></span>${labelB}</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(198,255,77,0.35);border-radius:2px;margin-right:5px;"></span>Semaine créatine</span>
     </div>
     <svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
       ${bands}
@@ -4329,7 +4697,7 @@ async function generateShareImage(){
     lines.forEach(([label,val])=>{
       ctx.fillStyle='#8D9096'; ctx.font='30px "IBM Plex Mono", monospace';
       ctx.fillText(String(label).toUpperCase(), 70, y);
-      ctx.fillStyle='#C6FF4D'; ctx.font='700 '+Math.round(Math.min(76, step*0.46))+'px "Bebas Neue", sans-serif';
+      ctx.fillStyle='#4CC9F0'; ctx.font='700 '+Math.round(Math.min(76, step*0.46))+'px "Bebas Neue", sans-serif';
       ctx.fillText(String(val), 70, y+step*0.5);
       y += step;
     });
