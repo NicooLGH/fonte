@@ -382,7 +382,8 @@ async function loadAll(){
         }
         byExo[s.exercice_id].sets.push({poids: Number(s.poids), reps: Number(s.reps)});
       });
-      return {id: se.id, weekKey: se.week_key, date: se.date, note: se.note, exercices: blocks};
+      return {id: se.id, weekKey: se.week_key, date: se.date, note: se.note,
+              dureeSec: se.duree_sec, exercices: blocks};
     });
 
     suivi = (rSuivi.data||[]).map(s=>({
@@ -452,6 +453,7 @@ async function loadAll(){
 
   const selSuivi = document.getElementById('suivi-field-select');
   if(selSuivi) selSuivi.addEventListener('change', renderSuiviChart);
+  safe('nav basse', majBottomNav);
   safe('jalon', chargerJalonChoisi);
   safe('empreintes', initEmpreintes);
   safe('calcul XP', ()=>{ lastXPBreakdown = computeXPBreakdown(); });
@@ -483,7 +485,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.2.0';
+const APP_VERSION = 'v3.3.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -1016,7 +1018,8 @@ function abandonnerLive(){
 function demarrerLive(modeleId){
   const m = modeles.find(function(x){ return x.id === modeleId; });
   if(!m) return;
-  const valides = m.exercices.filter(function(id){
+  const valides = m.exercices.filter(function(bloc){
+    const id = typeof bloc === 'string' ? bloc : bloc.id;
     return exercices.some(function(e){ return e.id === id; });
   });
   if(!valides.length){ showToast('Ce modele n\'a plus d\'exercice valide'); return; }
@@ -1024,9 +1027,15 @@ function demarrerLive(modeleId){
   live = {
     nom: m.nom,
     debut: Date.now(),
+    fin: null,          // fige la duree des que la seance est bouclee
     reposDebut: null,
+    note: '',
     index: 0,
-    blocs: valides.map(function(id){ return {exoId:id, sets:[], termine:false}; })
+    blocs: valides.map(function(bloc){
+      const id = typeof bloc === 'string' ? bloc : bloc.id;
+      const alts = (typeof bloc === 'object' && bloc.alternatives) ? bloc.alternatives : [];
+      return {exoId:id, alternatives:alts, sets:[], termine:false};
+    })
   };
   sauverLive();
   ouvrirLive();
@@ -1061,18 +1070,32 @@ async function quitterLive(){
 }
 
 // Duree ecoulee, calculee depuis l'horodatage de depart
+// Duree lisible pour l'affichage social : "1 h 12" plutot que "72:04"
+function dureeLisible(sec){
+  const m = Math.round(sec/60);
+  if(m < 60) return m + ' min';
+  return Math.floor(m/60) + ' h ' + String(m%60).padStart(2,'0');
+}
+
 function mmss(ms){
   const t = Math.max(0, Math.floor(ms/1000));
   const m = Math.floor(t/60), sec = t%60;
   return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
 }
 
+function dureeLive(){
+  if(!live) return 0;
+  return (live.fin || Date.now()) - live.debut;
+}
+
 function majChronos(){
   if(!live) return;
   const c = document.getElementById('live-chrono');
-  if(c) c.textContent = mmss(Date.now() - live.debut);
+  if(c) c.textContent = mmss(dureeLive());
   const r = document.getElementById('live-repos-temps');
   if(r && live.reposDebut) r.textContent = mmss(Date.now() - live.reposDebut);
+  // Seance bouclee : plus rien ne tourne
+  if(live.fin && liveTimer){ clearInterval(liveTimer); liveTimer = null; }
 }
 
 function lancerRepos(){
@@ -1100,13 +1123,19 @@ function renderLive(){
   document.getElementById('live-progress').style.width = Math.round((faits/total)*100) + '%';
   document.getElementById('live-repos').style.display = live.reposDebut ? 'block' : 'none';
 
-  // Tous les exercices sont faits : on propose d'enregistrer
-  if(live.index >= live.blocs.length || live.blocs.every(function(b){ return b.termine; })){
+  const fini = live.index >= live.blocs.length || live.blocs.every(function(b){ return b.termine; });
+
+  if(fini){
+    // Le chrono se fige au moment ou la seance est bouclee
+    if(!live.fin){ live.fin = Date.now(); live.reposDebut = null; sauverLive(); }
+    document.getElementById('live-repos').style.display = 'none';
+
     const volume = live.blocs.reduce(function(t,b){
       return t + b.sets.reduce(function(x,s){ return x + s.poids*s.reps; }, 0);
     }, 0);
     el.innerHTML = '<h2 class="live-exo-nom">Seance terminee</h2>' +
-      '<div class="live-exo-pos">' + faits + ' exercice(s) &middot; ' + Math.round(volume) + ' kg de volume</div>' +
+      '<div class="live-exo-pos">' + faits + ' exercice(s) &middot; ' +
+        Math.round(volume) + ' kg &middot; ' + mmss(dureeLive()) + '</div>' +
       '<div class="recap">' + live.blocs.filter(function(b){ return b.sets.length; }).map(function(b){
         const e = exercices.find(function(x){ return x.id === b.exoId; });
         return '<div class="recap-row"><span class="recap-label">' + (e ? e.name : '&mdash;') +
@@ -1116,10 +1145,21 @@ function renderLive(){
           b.sets.reduce(function(x,s){ return x + s.poids*s.reps; }, 0) +
           '<span class="unit">kg</span></span></div>';
       }).join('') + '</div>' +
+      '<div class="wiz-field" style="margin-top:20px;">' +
+        '<label>Note de seance (facultatif)</label>' +
+        '<textarea id="live-note" class="wiz-textarea" maxlength="280" rows="3" ' +
+        'placeholder="ex : jambes lourdes mais PR au squat"></textarea>' +
+        '<div class="wiz-hint">Si tu partages tes seances, tes amis la verront et pourront y reagir.</div>' +
+      '</div>' +
       '<div class="live-actions">' +
         '<button onclick="revenirExercice()">Revenir en arriere</button>' +
         '<button class="primaire" onclick="terminerLive()">Enregistrer la seance</button>' +
       '</div>';
+    const ta = document.getElementById('live-note');
+    if(ta){
+      ta.value = live.note || '';
+      ta.addEventListener('input', function(){ live.note = ta.value; sauverLive(); });
+    }
     return;
   }
 
@@ -1138,8 +1178,14 @@ function renderLive(){
         'value="' + (st.reps === '' ? '' : st.reps) + '" placeholder="reps">' +
       '<button class="live-set-ok' + (st.faite ? ' faite' : '') + '" ' +
         'onclick="validerSerie(' + i + ')" title="Valider la serie">\u2713</button>' +
+      '<button class="live-set-del" onclick="supprimerSerie(' + i + ')" title="Supprimer la serie">\u2715</button>' +
     '</div>';
   }).join('');
+
+  // Alternatives definies pour cet exercice, si la machine est prise
+  const alts = (bloc.alternatives || []).filter(function(id){
+    return exercices.some(function(e){ return e.id === id; });
+  });
 
   el.innerHTML =
     '<div class="live-exo-pos">Exercice ' + (live.index+1) + ' sur ' + total + '</div>' +
@@ -1152,10 +1198,16 @@ function renderLive(){
       : '<div class="live-derniere"><div class="live-derniere-titre">Premiere fois sur cet exercice</div></div>') +
     '<div class="live-sets">' + lignes + '</div>' +
     '<button class="small" onclick="ajouterSerieLive()">+ Ajouter une serie</button>' +
+    (alts.length
+      ? '<div class="live-alts"><div class="live-alts-titre">Alternatives si la machine est prise</div>' +
+        alts.map(function(id){
+          const a = exercices.find(function(e){ return e.id === id; });
+          return '<button class="live-alt" onclick="appliquerRemplacement(\'' + id + '\')">' +
+            String(a.name).replace(/</g,'&lt;') + '</button>';
+        }).join('') + '</div>'
+      : '') +
     '<div class="live-actions">' +
-      '<button onclick="' + (live.reposDebut ? 'arreterRepos()' : 'lancerRepos()') + '">' +
-        (live.reposDebut ? 'Arreter le repos' : '\u23F1 Lancer le repos') + '</button>' +
-      '<button onclick="passerExercice()">Passer</button>' +
+      '<button onclick="repousserExercice()">\u21BB Repousser</button>' +
       '<button onclick="remplacerExercice()">Remplacer</button>' +
       '<button class="primaire" onclick="exerciceSuivant()">Exercice suivant</button>' +
     '</div>' +
@@ -1197,10 +1249,25 @@ function validerSerie(i){
   const st = bloc.sets[i];
   if(st.poids === '' || st.reps === ''){ showToast('Renseigne le poids et les reps'); return; }
   st.faite = !st.faite;
+  // Valider une serie remet le repos a zero : c'est le geste qui
+  // marque la fin de l'effort, il n'y a donc pas de bouton dedie.
+  if(st.faite) live.reposDebut = Date.now();
+  else if(!bloc.sets.some(function(x){ return x.faite; })) live.reposDebut = null;
   sauverLive();
   renderLive();
-  // Valider une serie lance naturellement le repos
-  if(st.faite && !live.reposDebut) lancerRepos();
+}
+
+// Supprimer une serie ajoutee par erreur
+function supprimerSerie(i){
+  collecterSeries();
+  const bloc = live.blocs[live.index];
+  if(bloc.sets.length <= 1){
+    bloc.sets = [{poids:'', reps:'', faite:false}];
+  } else {
+    bloc.sets.splice(i, 1);
+  }
+  sauverLive();
+  renderLive();
 }
 
 function ajouterSerieLive(){
@@ -1227,7 +1294,7 @@ function exerciceSuivant(){
 }
 
 // La machine est occupee : on repousse l'exercice a plus tard
-function passerExercice(){
+function repousserExercice(){
   collecterSeries();
   const bloc = live.blocs.splice(live.index, 1)[0];
   live.blocs.push(bloc);
@@ -1294,10 +1361,13 @@ async function terminerLive(){
       'Une seule seance par jour est autorisee.\n\nCelle-ci va remplacer la precedente.', 'Remplacer');
     if(!ok) return;
     dejaLa.exercices = blocs;
+    dejaLa.note = live.note || null;
+    dejaLa.dureeSec = Math.round(dureeLive()/1000);
   } else {
     performances.push({
       id: crypto.randomUUID(), weekKey: isoWeekKey(new Date()),
-      date: today, note: null, exercices: blocs
+      date: today, note: live.note || null,
+      dureeSec: Math.round(dureeLive()/1000), exercices: blocs
     });
   }
 
@@ -1336,7 +1406,8 @@ function renderModeles(){
     return;
   }
   el.innerHTML = modeles.map(function(m){
-    const noms = m.exercices.map(function(id){
+    const noms = m.exercices.map(function(bloc){
+      const id = typeof bloc === 'string' ? bloc : bloc.id;
       const e = exercices.find(function(x){ return x.id === id; });
       return e ? e.name : null;
     }).filter(Boolean);
@@ -1378,7 +1449,7 @@ function buildModeleWizard(){
       }}], async finish(){}};
   }
 
-  const data = {nom:'', choisis:[]};
+  const data = {nom:'', choisis:[], alts:{}};
 
   const nomStep = {
     title:'Nom du modele',
@@ -1394,6 +1465,9 @@ function buildModeleWizard(){
     }
   };
 
+  // Chaque exercice peut recevoir des alternatives : en salle, la
+  // machine est souvent prise, et chercher un remplacant a ce
+  // moment-la fait perdre du temps.
   const exoStep = {
     title:'Quels exercices ?',
     render:function(){
@@ -1410,7 +1484,7 @@ function buildModeleWizard(){
         btn.addEventListener('click', function(){
           const id = btn.dataset.exo;
           const i = data.choisis.indexOf(id);
-          if(i >= 0) data.choisis.splice(i, 1);
+          if(i >= 0){ data.choisis.splice(i, 1); delete data.alts[id]; }
           else data.choisis.push(id);
           renderWizStep();
         });
@@ -1421,25 +1495,66 @@ function buildModeleWizard(){
     }
   };
 
+  const altStep = {
+    title:'Alternatives',
+    render:function(){
+      return '<p class="block-intro" style="margin-bottom:16px;">Pour chaque exercice, tu peux indiquer un ou deux ' +
+        'remplacants si la machine est prise. C\'est facultatif.</p>' +
+        data.choisis.map(function(id){
+          const e = exercices.find(function(x){ return x.id === id; });
+          const dispo = exercices.filter(function(x){ return x.id !== id; });
+          const sel = data.alts[id] || [];
+          return '<div class="alt-groupe"><div class="alt-titre">' +
+            (e ? String(e.name).replace(/</g,'&lt;') : '&mdash;') + '</div>' +
+            '<div class="alt-choix">' + dispo.map(function(x){
+              return '<button class="alt-opt' + (sel.indexOf(x.id) >= 0 ? ' choisi' : '') + '" ' +
+                'data-pour="' + id + '" data-alt="' + x.id + '">' +
+                String(x.name).replace(/</g,'&lt;') + '</button>';
+            }).join('') + '</div></div>';
+        }).join('');
+    },
+    after:function(){
+      document.querySelectorAll('.alt-opt').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const pour = btn.dataset.pour, alt = btn.dataset.alt;
+          if(!data.alts[pour]) data.alts[pour] = [];
+          const i = data.alts[pour].indexOf(alt);
+          if(i >= 0) data.alts[pour].splice(i, 1);
+          else data.alts[pour].push(alt);
+          renderWizStep();
+        });
+      });
+    }
+  };
+
   const recap = {
     title:'Recapitulatif',
     render:function(){
       return '<div class="recap">' + data.choisis.map(function(id, i){
         const e = exercices.find(function(x){ return x.id === id; });
+        const sel = (data.alts[id] || []).map(function(a){
+          const x = exercices.find(function(y){ return y.id === a; });
+          return x ? x.name : null;
+        }).filter(Boolean);
         return '<div class="recap-row"><span class="recap-label">' + (i+1) + '. ' +
-          (e ? String(e.name).replace(/</g,'&lt;') : '&mdash;') + '</span></div>';
+          (e ? String(e.name).replace(/</g,'&lt;') : '&mdash;') +
+          (sel.length ? '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">ou : ' +
+            sel.join(', ') + '</small>' : '') + '</span></div>';
       }).join('') + '</div>';
     }
   };
 
   return {
-    type:'modele', steps:[nomStep, exoStep, recap], index:0, data:data, saveLabel:'Creer le modele',
+    type:'modele', steps:[nomStep, exoStep, altStep, recap], index:0, data:data, saveLabel:'Creer le modele',
     async finish(){
       try{
-        const ligne = {id: crypto.randomUUID(), user_id: uid(), nom: data.nom, exercices: data.choisis};
+        const contenu = data.choisis.map(function(id){
+          return {id: id, alternatives: data.alts[id] || []};
+        });
+        const ligne = {id: crypto.randomUUID(), user_id: uid(), nom: data.nom, exercices: contenu};
         const res = await db.from('modeles').insert(ligne);
         if(res.error) throw res.error;
-        modeles.push({id: ligne.id, nom: data.nom, exercices: data.choisis});
+        modeles.push({id: ligne.id, nom: data.nom, exercices: contenu});
         renderModeles();
         showToast('Modele cree');
       }catch(e){ showToast('Creation impossible'); }
@@ -1750,6 +1865,8 @@ function renderSuiviRecap(){
         ? '<button class="small" style="margin-top:10px;" onclick="showPhoto(\'' + entry.weekKey + '\')">&#128247; Voir la photo de la semaine</button>'
         : '<div class="wiz-hint" style="margin-top:10px;">Aucune photo cette semaine &mdash; tu peux en ajouter une en modifiant ton releve.</div>');
     btn.textContent = 'Modifier mon releve';
+    el.innerHTML += '<button class="ghost danger" style="margin-top:10px;width:100%;border-radius:999px;" ' +
+      'onclick="deleteSuivi(\'' + entry.id + '\')">Supprimer ce releve</button>';
   } else {
     el.innerHTML = '<p class="recap-empty">Aucun releve enregistre pour cette semaine.</p>';
     btn.textContent = 'Ajouter mon releve';
@@ -1776,6 +1893,7 @@ function renderSeanceRecap(){
         '<span class="recap-label">' + se.date +
           (isToday ? ' <strong style="color:var(--accent-2);">- aujourd\'hui</strong>' : '') +
           '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' + names + '</small>' +
+          (se.dureeSec ? '<br><small style="font-family:var(--font-mono);font-size:10.5px;color:var(--accent-2);">&#9201; ' + dureeLisible(se.dureeSec) + '</small>' : '') +
           (se.note ? '<br><small class="seance-note">&#128221; ' + String(se.note).replace(/</g,'&lt;') + '</small>' : '') +
         '</span>' +
         '<span style="display:flex;align-items:center;gap:12px;">' +
@@ -2372,6 +2490,7 @@ function renderAmisBadge(){
     el.textContent = n;
     el.style.display = n ? 'inline-flex' : 'none';
   });
+  majBottomNav();
 }
 
 function personRow(p, actions, meta){
@@ -2488,6 +2607,7 @@ async function chargerFil(){
               String(noms).replace(/</g,'&lt;') + '</small></span>' +
             '<span class="recap-value">' + Math.round(f.volume) + '<span class="unit">kg vol.</span></span>' +
           '</div>' +
+          (f.duree_sec ? '<div class="seance-duree">&#9201; ' + dureeLisible(f.duree_sec) + '</div>' : '') +
           (f.note ? '<div class="seance-note">&#128221; ' + String(f.note).replace(/</g,'&lt;') + '</div>' : '') +
           '<div class="reac-row">' + totaux + boutons + '</div>' +
         '</div></div>';
@@ -2501,13 +2621,6 @@ async function chargerFil(){
       }).join('') + '</div>';
   }
 
-  if(inactifs.length){
-    html += '<div class="ami-inactifs">Pas encore actifs : ' +
-      inactifs.map(function(a){
-        return '<button class="ami-lien" onclick="openProfile(\'' + a.id + '\')">' +
-          String(a.pseudo).replace(/</g,'&lt;') + '</button>';
-      }).join(', ') + '</div>';
-  }
   el.innerHTML = html;
 }
 
@@ -2737,7 +2850,8 @@ function lignesSuivi(){
 function lignesSeances(){
   return performances.map(function(p){
     return {id:p.id, user_id:uid(), date:p.date, week_key:p.weekKey,
-            note:p.note == null ? null : p.note};
+            note:p.note == null ? null : p.note,
+            duree_sec:p.dureeSec == null ? null : p.dureeSec};
   });
 }
 
@@ -2807,6 +2921,76 @@ async function syncReminder(){
 }
 
 // ---- Tabs ----
+// ============================================================
+//  NAVIGATION BASSE (mobile)
+// ============================================================
+// Le pouce atteint mieux le bas de l'ecran que le haut, et le
+// bouton central regroupe les deux gestes du quotidien.
+document.querySelectorAll('.bn-item[data-bn]').forEach(function(item){
+  item.addEventListener('click', function(){
+    const btn = document.querySelector('nav.tabs button[data-view="' + item.dataset.bn + '"]');
+    if(btn) btn.click();
+  });
+});
+
+function majBottomNav(){
+  const actif = document.querySelector('nav.tabs button.active');
+  const vue = actif ? actif.dataset.view : null;
+  document.querySelectorAll('.bn-item[data-bn]').forEach(function(b){
+    b.classList.toggle('active', b.dataset.bn === vue);
+  });
+  const badge = document.getElementById('bn-badge-amis');
+  const src = document.getElementById('tab-badge-amis');
+  if(badge && src){
+    badge.textContent = src.textContent;
+    badge.style.display = src.style.display === 'none' ? 'none' : 'inline-flex';
+  }
+}
+
+function ouvrirActionRapide(){
+  const wk = isoWeekKey(new Date());
+  const releve = suivi.find(function(x){ return x.weekKey === wk; });
+  const corps = document.getElementById('action-rapide-corps');
+
+  let html = '';
+  if(modeles.length){
+    html += modeles.map(function(m){
+      const nb = m.exercices.length;
+      return '<button class="action-choix" onclick="fermerActionRapide(); demarrerLive(\'' + m.id + '\')">' +
+        '<span class="action-ico">\u25B6</span>' +
+        '<span class="action-txt"><strong>' + String(m.nom).replace(/</g,'&lt;') + '</strong>' +
+        '<small>Seance en direct &middot; ' + nb + ' exercice(s)</small></span></button>';
+    }).join('');
+  } else {
+    html += '<button class="action-choix" onclick="fermerActionRapide(); allerVue(\'performances\');">' +
+      '<span class="action-ico">\u2795</span>' +
+      '<span class="action-txt"><strong>Creer un modele</strong>' +
+      '<small>Necessaire pour lancer une seance en direct</small></span></button>';
+  }
+
+  html += '<button class="action-choix" onclick="fermerActionRapide(); allerVue(\'performances\'); startWizard(\'seance\');">' +
+    '<span class="action-ico">\u270F\uFE0F</span>' +
+    '<span class="action-txt"><strong>Saisir une seance</strong>' +
+    '<small>Sans mode direct, apres coup</small></span></button>';
+
+  html += '<button class="action-choix" onclick="fermerActionRapide(); allerVue(\'suivi\'); startWizard(\'suivi\');">' +
+    '<span class="action-ico">\u2696\uFE0F</span>' +
+    '<span class="action-txt"><strong>' + (releve ? 'Modifier mon releve' : 'Remplir mon releve') + '</strong>' +
+    '<small>Poids, calories et mensurations</small></span></button>';
+
+  corps.innerHTML = html;
+  document.getElementById('action-rapide').style.display = 'flex';
+}
+
+function fermerActionRapide(){
+  document.getElementById('action-rapide').style.display = 'none';
+}
+
+function allerVue(v){
+  const btn = document.querySelector('nav.tabs button[data-view="' + v + '"]');
+  if(btn) btn.click();
+}
+
 // ---- Menu burger (petits écrans) ----
 function toggleBurger(){
   const menu = document.getElementById('burger-menu');
@@ -3221,58 +3405,11 @@ function renderCorrelations(){
 
 // ---- ACCUEIL ----
 // ---- Séance suggérée ----
-function renderSuggestedSeance(){
-  const el = document.getElementById('suggested-seance');
-  if(exercices.length===0){ el.style.display='none'; return; }
-  const wk = isoWeekKey(new Date());
-  const already = performances.some(p=>p.weekKey===wk);
-  if(already){
-    el.style.display='block';
-    el.innerHTML = `<h2>Séance du jour</h2><p style="font-family:var(--font-body);font-size:14px;color:var(--ink-soft);margin:0;">Séance déjà enregistrée cette semaine. 💪</p>`;
-    return;
-  }
-  const past = sortByWeek(performances);
-  if(past.length===0){ el.style.display='none'; return; }
-  const last = past[past.length-1];
-  const names = last.exercices.map(b=>{ const exo=exercices.find(e=>e.id===b.exoId); return exo?exo.name:null; }).filter(Boolean);
-  if(names.length===0){ el.style.display='none'; return; }
-  el.style.display='block';
-  el.innerHTML = `
-    <h2>Séance du jour <span class="tag">suggestion</span></h2>
-    <p style="font-family:var(--font-body);font-size:13.5px;color:var(--ink-soft);margin:0 0 14px;">Basée sur ta dernière séance (${weekLabel(last.weekKey)}) :</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">${names.map(n=>`<span class="set-chip" style="font-size:13px;padding:6px 12px;">${n}</span>`).join('')}</div>
-    <button class="primary" onclick="startSuggestedSeance()">Commencer cette séance</button>`;
-}
-
-function startSuggestedSeance(){
-  const wk = isoWeekKey(new Date());
-  const past = sortByWeek(performances).filter(p=>p.weekKey!==wk);
-  if(past.length===0) return;
-  const last = past[past.length-1];
-  const exoIds = last.exercices.map(b=>b.exoId).filter(id=>exercices.some(e=>e.id===id));
-  if(exoIds.length===0) return;
-
-  document.querySelector('nav.tabs button[data-view="performances"]').click();
-
-  // On ouvre l'assistant de séance déjà rempli avec les exercices de
-  // la dernière séance, charges comprises : il n'y a plus qu'à ajuster.
-  startWizard('seance');
-  if(!wiz) return;
-  exoIds.forEach(exoId=>{
-    const block = last.exercices.find(b=>b.exoId===exoId);
-    wiz.blocks.push({exoId, sets: block.sets.map(s=>({poids:s.poids, reps:s.reps}))});
-  });
-  wiz.index = 3; // directement au récapitulatif
-  renderWizStep();
-  showToast('Séance reprise — ajuste tes charges 💪');
-}
-
 function renderHome(){
   renderPseudo();
   renderHero();
   renderLevel();
   renderNextMilestone();
-  renderSuggestedSeance();
   renderReminder();
   renderMonthlySummary();
   const el = document.getElementById('home-content');

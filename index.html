@@ -124,7 +124,6 @@
       </div>
     </section>
     <div class="card" id="next-milestone" style="display:none;"></div>
-    <div class="card" id="suggested-seance" style="display:none;"></div>
     <div class="card" id="activite-sociale" style="display:none;"></div>
     <div class="card" id="fil-amis" style="display:none;"></div>
     <div id="home-reminder"></div>
@@ -136,7 +135,7 @@
   <!-- MENSURATIONS -->
   <!-- PERFORMANCES -->
   <div class="view" id="view-performances">
-    <div class="card-duo">
+    <div class="card-trio">
       <div class="card">
         <h2>Mes exercices <button class="help-btn" onclick="toggleHelp('help-exo')" aria-label="Aide">i</button></h2>
         <div class="card-body">
@@ -632,6 +631,24 @@
     <div class="modal-actions">
       <button class="small" onclick="abandonnerLive()">Abandonner</button>
       <button class="primary" onclick="reprendreLive()">Reprendre</button>
+    </div>
+  </div>
+</div>
+
+<nav id="bottom-nav">
+  <button class="bn-item" data-bn="accueil"><span class="bn-ico">🏠</span><span class="bn-lab">Accueil</span></button>
+  <button class="bn-item" data-bn="suivi"><span class="bn-ico">📈</span><span class="bn-lab">Suivi</span></button>
+  <button class="bn-plus" onclick="ouvrirActionRapide()" aria-label="Ajouter">+</button>
+  <button class="bn-item" data-bn="performances"><span class="bn-ico">🏋️</span><span class="bn-lab">Perf.</span></button>
+  <button class="bn-item" data-bn="amis"><span class="bn-ico">👥</span><span class="bn-lab">Amis<span class="bn-badge" id="bn-badge-amis" style="display:none;"></span></span></button>
+</nav>
+
+<div id="action-rapide" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) fermerActionRapide()">
+  <div class="modal-card" style="max-width:380px;">
+    <h3>Que veux-tu faire ?</h3>
+    <div id="action-rapide-corps"></div>
+    <div class="modal-actions">
+      <button class="small" onclick="fermerActionRapide()">Annuler</button>
     </div>
   </div>
 </div>

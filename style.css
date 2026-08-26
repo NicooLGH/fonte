@@ -1471,3 +1471,168 @@ table tr{border-color:var(--glass-tint-strong);}
   text-transform:uppercase;color:var(--ink-soft);margin:4px 0 12px;
 }
 .live-repos button{border-radius:999px;}
+
+/* ============================================================
+   CORRECTIFS RESPONSIVE ET SEANCE EN DIRECT
+   ============================================================ */
+
+/* Trois cartes cote a cote : la grille de deux laissait un trou */
+.card-trio{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch;}
+.card-trio > .card{display:flex;flex-direction:column;margin-bottom:20px;}
+.card-trio > .card > .card-body{flex:1;}
+.card-trio > .card > .primary{margin-top:auto;}
+@media(max-width:1100px){ .card-trio{grid-template-columns:1fr 1fr;} }
+@media(max-width:860px){ .card-trio{grid-template-columns:1fr;gap:0;} }
+
+/* ---- Seance en direct : le chrono chevauchait la croix ---- */
+.live-head{padding:18px 62px 0 20px;}
+.live-quit{top:14px;right:14px;}
+.live-titre{flex-wrap:wrap;}
+@media(max-width:520px){
+  .live-head{padding:14px 56px 0 16px;}
+  .live-modele{font-size:22px;}
+  .live-chrono{font-size:14px;}
+  .live-body{padding:18px 16px 28px;}
+  .live-actions button{min-width:calc(50% - 4px);font-size:12.5px;padding:12px 10px;}
+}
+
+/* Suppression d'une serie */
+.live-set-del{
+  width:32px;height:32px;flex-shrink:0;border-radius:50%;
+  border:1px solid var(--glass-border);background:transparent;
+  color:var(--ink-soft);font-size:12px;cursor:pointer;
+}
+.live-set-del:hover{color:var(--accent);border-color:rgba(var(--accent-rgb),0.5);}
+@media(max-width:400px){
+  .live-set{padding:10px;gap:6px;}
+  .live-set input{font-size:21px;padding:9px 4px;}
+  .live-set-ok{width:36px;height:36px;}
+  .live-set-del{width:28px;height:28px;}
+}
+
+/* Alternatives proposees pendant la seance */
+.live-alts{
+  margin-top:18px;padding:14px 16px;border-radius:16px;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+}
+.live-alts-titre{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.08em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;
+}
+.live-alt{
+  display:inline-block;margin:0 6px 6px 0;
+  padding:9px 16px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--bg);
+  color:var(--ink);font-family:var(--font-body);font-size:13px;font-weight:600;
+}
+.live-alt:hover{border-color:var(--accent-2);color:var(--accent-2);}
+
+/* Choix des alternatives a la creation du modele */
+.alt-groupe{
+  padding:14px 0;border-bottom:1px solid var(--hairline);
+}
+.alt-groupe:last-child{border-bottom:none;}
+.alt-titre{
+  font-family:var(--font-body);font-weight:600;font-size:14px;
+  color:var(--ink);margin-bottom:9px;
+}
+.alt-choix{display:flex;gap:6px;flex-wrap:wrap;}
+.alt-opt{
+  padding:7px 14px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);font-family:var(--font-body);font-size:12.5px;
+}
+.alt-opt.choisi{
+  border-color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.14);color:var(--accent-2);
+}
+
+/* Duree d'une seance, dans le fil et sur les profils */
+.seance-duree{
+  font-family:var(--font-mono);font-size:11.5px;
+  color:var(--accent-2);margin-top:6px;
+}
+
+/* ---- Divers responsive ---- */
+@media(max-width:560px){
+  .modele-ligne{flex-wrap:wrap;}
+  .modele-actions{width:100%;}
+  .modele-actions button{flex:1;}
+  .wiz-actions{flex-wrap:wrap;}
+  .wiz-actions .primary{min-width:100%;}
+  .recap-row{gap:8px;}
+  .recap-value{font-size:19px;}
+  .fil-item{gap:10px;}
+  .settings-row{gap:12px;}
+  .settings-control{width:100%;}
+  .settings-control input{min-width:0;flex:1;}
+}
+
+/* ============================================================
+   NAVIGATION BASSE (mobile)
+   ============================================================ */
+#bottom-nav{display:none;}
+
+@media(max-width:900px){
+  #bottom-nav{
+    display:flex;align-items:center;justify-content:space-around;
+    position:fixed;left:12px;right:12px;bottom:12px;z-index:80;
+    padding:8px 6px;
+    background:var(--nav-bg);
+    border:1px solid var(--glass-border);
+    border-radius:26px;
+    box-shadow:0 8px 28px rgba(0,0,0,0.35);
+  }
+  .bn-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    background:none;border:none;cursor:pointer;padding:6px 2px;
+    color:var(--ink-soft);
+  }
+  .bn-ico{font-size:19px;line-height:1;}
+  .bn-lab{
+    position:relative;
+    font-family:var(--font-body);font-size:10px;font-weight:600;
+  }
+  .bn-item.active{color:var(--accent);}
+  .bn-badge{
+    position:absolute;top:-16px;right:-12px;
+    min-width:15px;height:15px;padding:0 4px;border-radius:999px;
+    background:var(--accent);color:#fff;
+    font-family:var(--font-mono);font-size:9px;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .bn-plus{
+    width:52px;height:52px;flex-shrink:0;margin:0 4px;
+    border-radius:50%;border:none;cursor:pointer;
+    background:var(--accent);color:#fff;
+    font-size:28px;line-height:1;font-weight:300;
+    box-shadow:0 4px 16px rgba(var(--accent-rgb),0.45);
+  }
+  .bn-plus:active{transform:scale(.94);}
+
+  /* La barre basse remplace le burger : deux menus concurrents
+     n'ont aucun interet, et le pouce atteint mieux le bas. */
+  .nav-burger{display:none !important;}
+  .app{padding-bottom:100px;}
+  #xp-stack{bottom:96px;}
+  .app-footer{margin-bottom:12px;}
+}
+
+.action-choix{
+  display:flex;align-items:center;gap:14px;width:100%;
+  padding:16px 18px;margin-bottom:10px;border-radius:18px;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink);text-align:left;
+}
+.action-choix:hover{background:var(--glass-tint-strong);border-color:var(--accent);}
+.action-ico{font-size:24px;flex-shrink:0;}
+.action-txt strong{display:block;font-size:14.5px;font-weight:600;}
+.action-txt small{
+  display:block;font-family:var(--font-mono);font-size:10.5px;
+  color:var(--ink-soft);margin-top:3px;
+}
+
+/* La ligne de semaine se retrouvait ecrasee dans une colonne etroite */
+.info-line{
+  display:block;width:100%;box-sizing:border-box;
+  white-space:normal;line-height:1.5;
+}
