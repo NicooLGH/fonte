@@ -491,7 +491,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.7.0';
+const APP_VERSION = 'v3.7.2';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -1434,7 +1434,7 @@ function renderModeles(){
     return;
   }
   const p = partie('modeles', modeles);
-  el.innerHTML = p.visibles.map(function(m){
+  const html = p.visibles.map(function(m){
     const noms = m.exercices.map(function(bloc){
       const id = typeof bloc === 'string' ? bloc : bloc.id;
       const e = exercices.find(function(x){ return x.id === id; });
@@ -1450,6 +1450,7 @@ function renderModeles(){
         '<button onclick="supprimerModele(\'' + m.id + '\')">Supprimer</button>' +
       '</div></div>';
   }).join('') + p.bouton;
+  poserListe('modeles', el, html);
 }
 
 async function supprimerModele(id){
@@ -1988,30 +1989,88 @@ async function telechargerBilan(complet){
 // modale ou d'ajouter un defilement interne. Un cadre qui
 // defile a l'interieur d'une page qui defile deja est un piege
 // classique sur mobile, ou le doigt ne sait plus quoi bouger.
-const LISTE_MAX = 5;
+// Limite propre a chaque liste : les cartes d'exercices, de
+// modeles et de seances sont hautes, deux suffisent a donner un
+// apercu sans faire gonfler le bloc. Les lignes d'historique et
+// d'amis sont compactes, on peut en montrer davantage.
+const LISTE_MAX_DEFAUT = 5;
+const LISTE_MAX = {
+  exercices:  2,
+  modeles:    2,
+  seances:    2,
+  historique: 3,
+  amis:       5
+};
 const listesDepliees = {};
+
+// Les listes qui s'ouvrent dans une fenetre plein ecran plutot
+// que de deplier sur place : ca evite qu'un bloc s'allonge et
+// entraine ses voisins avec lui. La liste d'amis fait exception,
+// elle reste depliee en place.
+const LISTES_MODALE = {
+  exercices:  'Mes exercices',
+  modeles:    'Mes modeles',
+  seances:    'Mes seances de la semaine',
+  historique: 'Historique du suivi'
+};
+
+const rendusListe = {
+  exercices:  function(){ return renderExoList(); },
+  modeles:    function(){ return renderModeles(); },
+  seances:    function(){ return renderSeanceRecap(); },
+  amis:       function(){ return renderAmis(); },
+  historique: function(){ return renderSuiviHistory(); }
+};
 
 function basculerListe(cle){
   listesDepliees[cle] = !listesDepliees[cle];
-  const rendus = {
-    exercices: renderExoList,
-    modeles:   renderModeles,
-    seances:   renderSeanceRecap,
-    amis:      renderAmis,
-    historique: renderSuiviHistory
-  };
-  if(rendus[cle]) rendus[cle]();
+  if(rendusListe[cle]) rendusListe[cle]();
 }
 
-// Renvoie la portion a afficher et le bouton qui va avec
+// Ouvre la liste complete dans une fenetre dediee, defilante
+function ouvrirListe(cle){
+  listeOuverte = cle;
+  listesDepliees[cle] = true;
+  if(rendusListe[cle]) rendusListe[cle]();      // remplit listeContenu
+  listesDepliees[cle] = false;
+  document.getElementById('liste-titre').textContent = LISTES_MODALE[cle] || 'Tout voir';
+  document.getElementById('liste-corps').innerHTML = listeContenu;
+  document.getElementById('liste-modal').style.display = 'flex';
+  listeOuverte = null;
+  if(rendusListe[cle]) rendusListe[cle]();      // remet le bloc a son etat plie
+}
+
+function fermerListe(){
+  document.getElementById('liste-modal').style.display = 'none';
+  // Les actions faites dans la fenetre doivent se refleter dans les blocs
+  Object.keys(rendusListe).forEach(function(k){
+    try{ rendusListe[k](); }catch(e){}
+  });
+}
+
+// Quand une liste est rendue pour la fenetre, on capte son HTML
+// au lieu de l'ecrire dans le bloc.
+let listeOuverte = null;
+let listeContenu = '';
+
+function poserListe(cle, el, html){
+  if(listeOuverte === cle){ listeContenu = html; return; }
+  if(el) el.innerHTML = html;
+}
+
 function partie(cle, items){
+  const max = LISTE_MAX[cle] || LISTE_MAX_DEFAUT;
   const deplie = !!listesDepliees[cle];
-  const visibles = deplie ? items : items.slice(0, LISTE_MAX);
+  const visibles = deplie ? items : items.slice(0, max);
   let bouton = '';
-  if(items.length > LISTE_MAX){
-    bouton = '<button class="voir-plus" onclick="basculerListe(\'' + cle + '\')">' +
-      (deplie ? 'Voir moins' : 'Voir les ' + (items.length - LISTE_MAX) + ' autres') +
-      '</button>';
+  if(items.length > max && !deplie){
+    const reste = items.length - max;
+    const libelle = reste === 1 ? "Voir l'autre" : 'Voir les ' + reste + ' autres';
+    bouton = LISTES_MODALE[cle]
+      ? '<button class="voir-plus" onclick="ouvrirListe(\'' + cle + '\')">' + libelle + '</button>'
+      : '<button class="voir-plus" onclick="basculerListe(\'' + cle + '\')">' + libelle + '</button>';
+  } else if(items.length > max && deplie && !LISTES_MODALE[cle]){
+    bouton = '<button class="voir-plus" onclick="basculerListe(\'' + cle + '\')">Voir moins</button>';
   }
   return {visibles: visibles, bouton: bouton};
 }
@@ -2435,7 +2494,7 @@ function renderSeanceRecap(){
 
   if(weekSeances.length){
     const p = partie('seances', weekSeances);
-    el.innerHTML = '<div class="recap">' + p.visibles.map(function(se){
+    const html = '<div class="recap">' + p.visibles.map(function(se){
       const vol = se.exercices.reduce((t,b)=>t+b.sets.reduce((x,s)=>x+s.poids*s.reps,0),0);
       const names = se.exercices.map(function(b){
         const e = exercices.find(x=>x.id===b.exoId); return e?e.name:'-';
@@ -2453,6 +2512,7 @@ function renderSeanceRecap(){
           '<button class="del-btn" onclick="deleteSeance(\'' + se.id + '\')" title="Supprimer cette seance">&#10005;</button>' +
         '</span></div>';
     }).join('') + '</div>' + p.bouton;
+    poserListe('seances', el, html);
   } else {
     el.innerHTML = '<p class="recap-empty">Aucune seance enregistree cette semaine.</p>';
   }
@@ -4600,7 +4660,7 @@ function renderExoList(){
     return;
   }
   const p = partie('exercices', exercices);
-  el.innerHTML = p.visibles.map(function(e){
+  const html = p.visibles.map(function(e){
     return '<div class="exo-row">' +
       '<span class="exo-name">' + String(e.name).replace(/</g,'&lt;') +
         '<span class="exo-grp">' + icoGroupe(e.groupe) + ' ' + nomGroupe(e.groupe) + '</span></span>' +
@@ -4612,7 +4672,79 @@ function renderExoList(){
         '<button class="del-btn" onclick="deleteExercice(\'' + e.id + '\')">\u2715</button>' +
       '</div></div>';
   }).join('') + p.bouton;
+  poserListe('exercices', el, html);
 }
+
+
+async function deleteExercice(id){
+  const exo = exercices.find(function(e){ return e.id === id; });
+  const nb = getExoEntries(id).length;
+  const ok = await confirmer('Supprimer cet exercice ?',
+    (exo ? '\u00AB ' + exo.name + ' \u00BB' : 'Cet exercice') +
+    (nb ? ' et ses ' + nb + ' passage' + (nb>1?'s':'') + ' enregistre' + (nb>1?'s':'') : '') +
+    " seront definitivement effaces, ainsi que l'XP et les records associes.", 'Supprimer');
+  if(!ok) return;
+  exercices = exercices.filter(function(e){ return e.id !== id; });
+  performances.forEach(function(se){
+    se.exercices = se.exercices.filter(function(b){ return b.exoId !== id; });
+  });
+  performances = performances.filter(function(se){ return se.exercices.length > 0; });
+  await save('exercices', exercices);
+  await save('performances', performances);
+  renderExoList(); renderPerfChartSelect(); renderPerfHistory();
+  renderPerfWeekSelect(); renderSeanceRecap(); renderEquilibre(); renderHome();
+  showToast('Exercice supprime');
+}
+
+// Bascule entre la vue par exercice et la vue par semaine.
+// L'appel existait dans le HTML sans que la fonction n'ait
+// jamais ete ecrite : le bouton ne faisait donc rien.
+function setPerfSubview(mode){
+  document.querySelectorAll('.perf-subtab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  const exo = document.getElementById('perf-exo-view');
+  const week = document.getElementById('perf-week-view');
+  if(exo)  exo.style.display  = (mode === 'exo')  ? 'block' : 'none';
+  if(week) week.style.display = (mode === 'week') ? 'block' : 'none';
+  if(mode === 'week') renderPerfWeekView();
+}
+
+function renderPerfWeekView(){
+  const el = document.getElementById('perf-week-list');
+  const sel = document.getElementById('perf-week-select');
+  const wk = sel.value;
+  if(!wk || exercices.length===0){ el.innerHTML = '<p class="empty">Pas encore de séance enregistrée.</p>'; return; }
+
+  let rows = exercices.map(exo=>{
+    const entries = getExoEntries(exo.id);
+    const idx = entries.findIndex(e=>e.weekKey===wk);
+    if(idx===-1){
+      return `<div class="week-row"><span class="wr-name">${exo.name}</span><span class="wr-val" style="color:var(--ink-soft);font-size:14px;">—</span></div>`;
+    }
+    const entry = entries[idx];
+    const maxPoids = Math.max(...entry.sets.map(s=>s.poids));
+    const prevEntry = idx>0 ? entries[idx-1] : null;
+    let pill = '<span class="delta-pill flat">1ère fois</span>';
+    if(prevEntry){
+      const prevMax = Math.max(...prevEntry.sets.map(s=>s.poids));
+      const diff = +(maxPoids-prevMax).toFixed(1);
+      if(diff>0) pill = `<span class="delta-pill up">▲ +${diff} kg vs ${weekShort(prevEntry.weekKey)}</span>`;
+      else if(diff<0) pill = `<span class="delta-pill down">▼ ${diff} kg vs ${weekShort(prevEntry.weekKey)}</span>`;
+      else pill = `<span class="delta-pill flat">= vs ${weekShort(prevEntry.weekKey)}</span>`;
+    }
+    const goalHTML = exo.objectif!=null ? `<div class="wr-goal">${goalProgressHTML(Math.max(...entries[0].sets.map(s=>s.poids)), maxPoids, exo.objectif, 'kg')}</div>` : '';
+    return `<div class="week-row">
+      <span class="wr-name">${exo.name}</span>
+      <span class="wr-val">${maxPoids} <span style="font-size:12px;">kg</span></span>
+      ${pill}
+      ${goalHTML}
+    </div>`;
+  }).join('');
+  el.innerHTML = rows;
+}
+
+// ---- Suivi hebdo ----
 
 // Attribuer ou changer le groupe d'un exercice deja cree
 function editExoGroupe(id){
@@ -4729,8 +4861,9 @@ function renderSuiviHistory(){
       '<td><button class="del-btn" onclick="deleteSuivi(\'' + s.id + '\')" title="Supprimer">&#10005;</button></td></tr>';
   }).join('');
   const entetes = SUIVI_FIELDS.map(function(f){ return '<th>' + f.label + '</th>'; }).join('');
-  el.innerHTML = '<div style="overflow-x:auto;"><table><thead><tr><th>Semaine</th>' +
+  const html = '<div style="overflow-x:auto;"><table><thead><tr><th>Semaine</th>' +
     entetes + '<th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + p.bouton;
+  poserListe('historique', el, html);
 }
 
 function renderSuiviChart(){

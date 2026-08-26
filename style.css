@@ -1964,3 +1964,43 @@ table tr{border-color:var(--glass-tint-strong);}
   box-sizing:border-box;
 }
 .bilan-scene > *{flex-shrink:0;}
+
+/* ============================================================
+   FENETRE "TOUT VOIR"
+   ============================================================ */
+.liste-card{
+  max-width:640px;width:100%;
+  display:flex;flex-direction:column;
+  max-height:82vh;
+}
+.liste-tete{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-shrink:0;
+  padding-bottom:14px;margin-bottom:6px;
+  border-bottom:1px solid var(--hairline);
+}
+.liste-tete h3{margin:0;}
+/* Le defilement est ici, dans une fenetre dediee : c'est le
+   seul endroit ou il ne rentre pas en conflit avec celui de la
+   page, puisque la page est figee derriere. */
+.liste-corps{
+  flex:1;overflow-y:auto;overscroll-behavior:contain;
+  padding:6px 2px 2px;margin:0 -2px;
+}
+.liste-corps .voir-plus{display:none;}
+.liste-corps table{width:100%;}
+@media(max-width:560px){
+  .liste-card{max-height:88vh;}
+}
+
+/* Toutes les modales partageaient le meme niveau : la fenetre
+   "tout voir" passait donc par-dessus la confirmation ouverte
+   depuis elle, qui devenait inutilisable. On hierarchise. */
+#liste-modal{z-index:1000;}
+#dialog-modal{z-index:1200;}
+#wizard-modal{z-index:1100;}
+#delete-account-modal, #reprise-modal, #action-rapide{z-index:1150;}
+
+/* Une ligne d'info vide gardait son cadre et laissait une barre
+   coloree sans contenu. */
+.info-line:empty{display:none;}

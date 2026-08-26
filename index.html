@@ -6,7 +6,7 @@
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<link rel="stylesheet" href="style.css?v=370">
+<link rel="stylesheet" href="style.css?v=372">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -715,6 +715,16 @@
   <button class="bilan-zone bilan-suiv" onclick="bilanSuiv()" aria-label="Suivant"></button>
 </div>
 
+<div id="liste-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) fermerListe()">
+  <div class="modal-card liste-card">
+    <div class="liste-tete">
+      <h3 id="liste-titre">—</h3>
+      <button class="wiz-close" onclick="fermerListe()" aria-label="Fermer">✕</button>
+    </div>
+    <div class="liste-corps" id="liste-corps"></div>
+  </div>
+</div>
+
 <div id="xp-stack"></div>
 <div id="toast"></div>
 
@@ -767,6 +777,6 @@
 
 
 
-<script src="app.js?v=370"></script>
+<script src="app.js?v=372"></script>
 </body>
 </html>
