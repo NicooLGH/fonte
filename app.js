@@ -364,7 +364,8 @@ async function loadAll(){
 
     exercices = (rExos.data||[]).map(e=>({
       id: e.id, name: e.name,
-      objectif: e.objectif!=null ? Number(e.objectif) : null
+      objectif: e.objectif!=null ? Number(e.objectif) : null,
+      groupe: e.groupe || null
     }));
 
     // On recompose la structure imbriquée que le reste du code attend :
@@ -452,6 +453,8 @@ async function loadAll(){
   safe('graphique suivi',    renderSuiviChart);
   safe('comparaison',        renderCompareSelects);
 
+  const selEq = document.getElementById('equilibre-periode');
+  if(selEq) selEq.addEventListener('change', renderEquilibre);
   const selSuivi = document.getElementById('suivi-field-select');
   if(selSuivi) selSuivi.addEventListener('change', renderSuiviChart);
   safe('presence', demarrerPresence);
@@ -487,7 +490,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.5.0';
+const APP_VERSION = 'v3.6.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -1586,9 +1589,84 @@ function buildModeleWizard(){
   };
 }
 
+// ============================================================
+//  GROUPES MUSCULAIRES
+// ============================================================
+const GROUPES = [
+  {cle:'pectoraux', nom:'Pectoraux', ico:'\u{1F9BE}'},
+  {cle:'dos',       nom:'Dos',       ico:'\u{1F9D7}'},
+  {cle:'epaules',   nom:'Epaules',   ico:'\u{1F3CB}'},
+  {cle:'biceps',    nom:'Biceps',    ico:'\u{1F4AA}'},
+  {cle:'triceps',   nom:'Triceps',   ico:'\u{1F94A}'},
+  {cle:'jambes',    nom:'Jambes',    ico:'\u{1F9B5}'},
+  {cle:'fessiers',  nom:'Fessiers',  ico:'\u{1F351}'},
+  {cle:'abdos',     nom:'Abdos',     ico:'\u{1F9CD}'},
+  {cle:'cardio',    nom:'Cardio',    ico:'\u{1F3C3}'},
+  {cle:'autre',     nom:'Autre',     ico:'\u2699'}
+];
+
+function nomGroupe(cle){
+  if(!cle || cle === 'non_classe') return 'Non classe';
+  const g = GROUPES.find(function(x){ return x.cle === cle; });
+  return g ? g.nom : cle;
+}
+function icoGroupe(cle){
+  if(!cle || cle === 'non_classe') return '\u2753';
+  const g = GROUPES.find(function(x){ return x.cle === cle; });
+  return g ? g.ico : '\u2699';
+}
+
+// ---- Vue equilibre ----
+async function renderEquilibre(){
+  const el = document.getElementById('equilibre-holder');
+  if(!el) return;
+  const sel = document.getElementById('equilibre-periode');
+  const sem = sel ? parseInt(sel.value, 10) : 4;
+
+  el.innerHTML = '<p class="recap-empty">Calcul en cours...</p>';
+  let data = [];
+  try{
+    const res = await db.rpc('equilibre_groupes', {depuis_semaines: sem});
+    if(res.error) throw res.error;
+    data = res.data || [];
+  }catch(e){
+    console.error('Equilibre indisponible', e);
+    el.innerHTML = '<p class="recap-empty">Calcul impossible pour le moment.</p>';
+    return;
+  }
+
+  if(!data.length){
+    el.innerHTML = '<p class="recap-empty">Aucune serie enregistree sur cette periode.</p>';
+    return;
+  }
+
+  const total = data.reduce(function(t, g){ return t + Number(g.volume); }, 0);
+  const max = Math.max.apply(null, data.map(function(g){ return Number(g.volume); }));
+
+  el.innerHTML = '<div class="eq-liste">' + data.map(function(g){
+    const vol = Number(g.volume);
+    const part = total ? Math.round((vol/total)*100) : 0;
+    const large = max ? (vol/max)*100 : 0;
+    const inconnu = g.groupe === 'non_classe';
+    return '<div class="eq-ligne' + (inconnu ? ' inconnu' : '') + '">' +
+      '<div class="eq-tete">' +
+        '<span class="eq-nom">' + icoGroupe(g.groupe) + ' ' + nomGroupe(g.groupe) + '</span>' +
+        '<span class="eq-val">' + Math.round(vol).toLocaleString('fr-FR') +
+          ' kg <small>' + part + ' %</small></span>' +
+      '</div>' +
+      '<div class="eq-barre"><div class="eq-fill" style="width:' + large + '%"></div></div>' +
+      '<div class="eq-detail">' + g.nb_series + ' serie(s) &middot; ' + g.nb_exos + ' exercice(s)</div>' +
+    '</div>';
+  }).join('') + '</div>' +
+  (data.some(function(g){ return g.groupe === 'non_classe'; })
+    ? '<p class="wiz-hint" style="margin-top:14px;">Certains exercices n\'ont pas de groupe. ' +
+      'Tu peux le definir depuis le bloc « Mes exercices ».</p>'
+    : '');
+}
+
 // ---- Parcours : nouvel exercice ----
 function buildExoWizard(){
-  const data = {name:'', objectif:null};
+  const data = {name:'', objectif:null, groupe:null};
   return {
     type:'exercice', index:0, data, saveLabel:'Ajouter',
     steps:[
@@ -1610,6 +1688,26 @@ function buildExoWizard(){
         }
       },
       {
+        title:'Groupe musculaire',
+        render:function(){
+          return '<div class="grp-choix">' + GROUPES.map(function(g){
+            return '<button class="grp-opt' + (data.groupe === g.cle ? ' choisi' : '') + '" ' +
+              'data-grp="' + g.cle + '"><span class="grp-ico">' + g.ico + '</span>' +
+              '<span>' + g.nom + '</span></button>';
+          }).join('') + '</div>' +
+          '<div class="wiz-hint">Le groupe principal sollicite. Sert a la vue Equilibre ' +
+          'de l\'onglet Analyse. Facultatif, tu peux passer.</div>';
+        },
+        after:function(){
+          document.querySelectorAll('.grp-opt').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              data.groupe = (data.groupe === btn.dataset.grp) ? null : btn.dataset.grp;
+              renderWizStep();
+            });
+          });
+        }
+      },
+      {
         title:'Objectif de charge',
         render(){
           return `<div class="wiz-field">
@@ -1625,7 +1723,7 @@ function buildExoWizard(){
       }
     ],
     async finish(){
-      exercices.push({id: crypto.randomUUID(), name:data.name, objectif:data.objectif});
+      exercices.push({id: crypto.randomUUID(), name:data.name, objectif:data.objectif, groupe:data.groupe});
       await save('exercices', exercices);
       renderExoList(); renderPerfChartSelect(); renderHome();
       showToast('Exercice ajouté ✓');
@@ -1958,6 +2056,8 @@ let dialogResolve = null;
 
 function fermerDialog(valeur){
   document.getElementById('dialog-modal').style.display = 'none';
+  const extra = document.getElementById('grp-edit');
+  if(extra) extra.remove();
   if(dialogResolve){ dialogResolve(valeur); dialogResolve = null; }
 }
 
@@ -2962,7 +3062,9 @@ async function appliquer(table, lignes){
 
 function lignesExercices(){
   return exercices.map(function(e){
-    return {id:e.id, user_id:uid(), name:e.name, objectif:e.objectif == null ? null : e.objectif};
+    return {id:e.id, user_id:uid(), name:e.name,
+            objectif:e.objectif == null ? null : e.objectif,
+            groupe:e.groupe || null};
   });
 }
 function lignesSuivi(){
@@ -3195,7 +3297,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     if(btn.dataset.view==='suivi') renderCompareSelects();
     if(btn.dataset.view==='moi') renderHome();
     if(btn.dataset.view==='accueil') chargerFil();
-    if(btn.dataset.view==='analyse'){ renderRecordsTab(); renderCorrelations(); }
+    if(btn.dataset.view==='analyse'){ renderRecordsTab(); renderCorrelations(); renderEquilibre(); }
     if(btn.dataset.view==='amis') chargerAmis();
   });
 });
@@ -4063,32 +4165,53 @@ async function deleteSuivi(id){
 
 function renderExoList(){
   const el = document.getElementById('exo-list');
-  if(exercices.length===0){el.innerHTML='<p class="empty">Aucun exercice pour l\'instant — ajoute ton premier exercice ci-dessus.</p>';return;}
-  el.innerHTML = exercices.map(e=>`
-    <div class="exo-row">
-      <span class="exo-name">${e.name}</span>
-      <span class="exo-goal">${e.objectif!=null?'Objectif : '+e.objectif+' kg':'Pas d\'objectif'}</span>
-      <div class="exo-actions">
-        <button class="small" onclick="editExoGoal('${e.id}')">Objectif</button>
-        <button class="del-btn" onclick="deleteExercice('${e.id}')">✕</button>
-      </div>
-    </div>`).join('');
+  if(!el) return;
+  if(exercices.length === 0){
+    el.innerHTML = '<p class="empty">Aucun exercice pour l\'instant.</p>';
+    return;
+  }
+  el.innerHTML = exercices.map(function(e){
+    return '<div class="exo-row">' +
+      '<span class="exo-name">' + String(e.name).replace(/</g,'&lt;') +
+        '<span class="exo-grp">' + icoGroupe(e.groupe) + ' ' + nomGroupe(e.groupe) + '</span></span>' +
+      '<span class="exo-goal">' +
+        (e.objectif != null ? 'Objectif : ' + e.objectif + ' kg' : 'Pas d\'objectif') + '</span>' +
+      '<div class="exo-actions">' +
+        '<button class="small" onclick="editExoGroupe(\'' + e.id + '\')">Groupe</button>' +
+        '<button class="small" onclick="editExoGoal(\'' + e.id + '\')">Objectif</button>' +
+        '<button class="del-btn" onclick="deleteExercice(\'' + e.id + '\')">\u2715</button>' +
+      '</div></div>';
+  }).join('');
 }
 
-async function deleteExercice(id){
-  const exo = exercices.find(e=>e.id===id);
-  const nb = getExoEntries(id).length;
-  const ok = await confirmer('Supprimer cet exercice ?',
-    (exo ? '« ' + exo.name + ' »' : 'Cet exercice') +
-    (nb ? ' et ses ' + nb + ' passage' + (nb>1?'s':'') + ' enregistre' + (nb>1?'s':'') : '') +
-    " seront definitivement effaces, ainsi que l'XP et les records associes.", 'Supprimer');
-  if(!ok) return;
-  exercices = exercices.filter(e=>e.id!==id);
-  performances.forEach(se=>{ se.exercices = se.exercices.filter(b=>b.exoId!==id); });
-  performances = performances.filter(se=>se.exercices.length>0);
-  save('exercices', exercices); save('performances', performances);
-  renderExoList(); renderPerfChartSelect(); renderPerfHistory();
-  renderPerfWeekSelect(); renderSeanceRecap(); renderHome();
+// Attribuer ou changer le groupe d'un exercice deja cree
+function editExoGroupe(id){
+  const exo = exercices.find(function(e){ return e.id === id; });
+  if(!exo) return;
+  document.getElementById('dialog-titre').textContent = 'Groupe musculaire';
+  document.getElementById('dialog-texte').textContent = exo.name;
+  document.getElementById('dialog-actions').innerHTML =
+    '<button class="small" onclick="fermerDialog(false)">Fermer</button>';
+  const corps = document.getElementById('dialog-texte');
+  corps.insertAdjacentHTML('afterend',
+    '<div class="grp-choix" id="grp-edit">' + GROUPES.map(function(g){
+      return '<button class="grp-opt' + (exo.groupe === g.cle ? ' choisi' : '') + '" ' +
+        'data-grp="' + g.cle + '"><span class="grp-ico">' + g.ico + '</span>' +
+        '<span>' + g.nom + '</span></button>';
+    }).join('') + '</div>');
+  document.getElementById('dialog-modal').style.display = 'flex';
+
+  document.querySelectorAll('#grp-edit .grp-opt').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      exo.groupe = (exo.groupe === btn.dataset.grp) ? null : btn.dataset.grp;
+      document.querySelectorAll('#grp-edit .grp-opt').forEach(function(b){
+        b.classList.toggle('choisi', b.dataset.grp === exo.groupe);
+      });
+      await save('exercices', exercices);
+      renderExoList();
+      renderEquilibre();
+    });
+  });
 }
 
 function editExoGoal(id){

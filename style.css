@@ -1753,3 +1753,68 @@ table tr{border-color:var(--glass-tint-strong);}
 }
 @keyframes pulsePresence{0%,100%{opacity:1;}50%{opacity:.45;}}
 .profil-tag .presence{font-size:11px;}
+
+/* ============================================================
+   GROUPES MUSCULAIRES
+   ============================================================ */
+.grp-choix{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px;}
+.grp-opt{
+  display:flex;align-items:center;gap:7px;
+  padding:9px 15px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);font-family:var(--font-body);font-size:13px;font-weight:600;
+}
+.grp-opt:hover{background:var(--glass-tint-strong);color:var(--ink);}
+.grp-opt.choisi{
+  border-color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.14);color:var(--accent-2);
+}
+.grp-ico{font-size:15px;line-height:1;}
+
+.exo-grp{
+  display:block;font-family:var(--font-mono);font-size:10.5px;
+  color:var(--ink-soft);margin-top:3px;
+}
+
+/* ---- Vue equilibre ---- */
+.eq-liste{display:flex;flex-direction:column;gap:16px;}
+.eq-ligne.inconnu{opacity:.6;}
+.eq-tete{
+  display:flex;justify-content:space-between;align-items:baseline;
+  gap:12px;margin-bottom:7px;
+}
+.eq-nom{font-family:var(--font-body);font-weight:600;font-size:14px;color:var(--ink);}
+.eq-val{
+  font-family:var(--font-display);font-size:20px;color:var(--accent-2);
+  white-space:nowrap;
+}
+.eq-val small{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-left:5px;}
+.eq-barre{
+  height:9px;border-radius:99px;overflow:hidden;
+  background:var(--glass-tint);
+}
+.eq-fill{
+  height:100%;border-radius:99px;
+  background:linear-gradient(90deg, var(--accent), #ff8a63);
+  transition:width .5s cubic-bezier(.16,.84,.44,1);
+}
+.eq-ligne.inconnu .eq-fill{background:var(--ink-soft);}
+.eq-detail{
+  font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);margin-top:6px;
+}
+@media(max-width:560px){
+  .eq-tete{flex-wrap:wrap;gap:4px;}
+  .eq-val{font-size:18px;}
+}
+
+/* Dans une colonne sur trois, la ligne horizontale etait trop
+   serree : on empile plutot nom / objectif / actions. */
+.exo-row{
+  display:flex;flex-direction:column;align-items:stretch;gap:8px;
+}
+.exo-row .exo-name{font-size:14px;font-weight:600;line-height:1.3;}
+.exo-row .exo-goal{
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);
+}
+.exo-row .exo-actions{display:flex;gap:6px;align-items:center;}
+.exo-row .exo-actions .small{flex:1;padding:7px 10px;font-size:11.5px;}
+.exo-row .exo-actions .del-btn{flex:0 0 auto;padding:0 4px;}

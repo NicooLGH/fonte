@@ -6,7 +6,7 @@
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<link rel="stylesheet" href="style.css?v=350">
+<link rel="stylesheet" href="style.css?v=360">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -319,6 +319,28 @@
   </div>
 
   <div class="view" id="view-analyse">
+    <div class="card">
+      <h2>Équilibre musculaire <button class="help-btn" onclick="toggleHelp('help-equilibre')" aria-label="Aide">i</button></h2>
+      <p class="block-intro">Le volume que tu as soulevé, réparti par groupe musculaire.</p>
+      <div class="help-box" id="help-equilibre">
+        <strong>Comment le lire ?</strong><br>
+        Chaque exercice est rattaché à un groupe principal — le développé couché sollicite aussi les triceps,
+        mais c'est un mouvement de pectoraux. Répartir le volume entre plusieurs groupes demanderait des
+        pourcentages arbitraires ; l'attribuer au groupe principal donne une vue plus lisible.<br><br>
+        Un fort déséquilibre n'est pas forcément un problème : ça dépend de ton programme. C'est un repère,
+        pas un jugement. Les exercices sans groupe apparaissent dans « Non classé ».
+      </div>
+      <div class="chart-controls">
+        <select id="equilibre-periode">
+          <option value="4">4 dernières semaines</option>
+          <option value="8">8 dernières semaines</option>
+          <option value="12">3 derniers mois</option>
+          <option value="52">1 an</option>
+        </select>
+      </div>
+      <div id="equilibre-holder"></div>
+    </div>
+
     <div class="card">
       <h2>Assiduité</h2>
       <div class="chart-controls">
@@ -736,6 +758,6 @@
 
 
 
-<script src="app.js?v=350"></script>
+<script src="app.js?v=360"></script>
 </body>
 </html>
