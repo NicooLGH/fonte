@@ -1308,8 +1308,9 @@ table tr{border-color:var(--glass-tint-strong);}
    de .nav-avatar arrive apres la media query d'origine et
    l'ecrasait. */
 @media(max-width:900px){
+  /* L'avatar mene au profil, deja present dans la barre basse.
+     Reglages et deconnexion restent, eux, en haut. */
   .topbar .nav-avatar,
-  .topbar .nav-logout,
   .topbar .nav-week,
   .topbar .streak-badge{display:none !important;}
   .topbar{justify-content:space-between;padding:8px 12px 8px 18px;}
@@ -1695,4 +1696,33 @@ table tr{border-color:var(--glass-tint-strong);}
 @media(max-width:900px){
   #bottom-nav .bn-item{max-width:23%;}
   #bn-avatar{font-size:19px;}
+}
+
+/* ============================================================
+   BOUTONS REGLAGES ET DECONNEXION
+   ============================================================ */
+/* Les caracteres ⚙ et ⏻ se rendaient mal selon la police du
+   systeme : on passe a de vraies icones vectorielles. */
+.nav-reglages, .nav-logout{
+  width:38px;height:38px;flex-shrink:0;padding:0;
+  border-radius:50%;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);
+  display:flex;align-items:center;justify-content:center;
+  transition:color .15s ease, border-color .15s ease, background .15s ease;
+}
+.nav-reglages svg, .nav-logout svg{width:18px;height:18px;display:block;}
+.nav-reglages:hover{color:var(--ink);border-color:rgba(255,255,255,0.22);background:var(--glass-tint-strong);}
+.nav-logout:hover{color:var(--accent);border-color:rgba(var(--accent-rgb),0.5);}
+
+/* Sur mobile ils restent accessibles : la barre haute ne
+   contient que le logo, il y a la place. */
+@media(max-width:900px){
+  .nav-reglages, .nav-logout{display:flex !important;width:36px;height:36px;}
+  .nav-reglages svg, .nav-logout svg{width:17px;height:17px;}
+  .topbar{gap:8px;padding:8px 10px 8px 16px;}
+  .brand{font-size:22px;}
+}
+@media(max-width:360px){
+  .nav-reglages, .nav-logout{width:33px;height:33px;}
 }
