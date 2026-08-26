@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FONTE — Carnet de suivi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bg-layer"></div>
+
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-brand">Fonte<span>.</span></div>
+    <p class="auth-tagline">Ton carnet de performance, synchronisé.</p>
+
+    <div class="auth-tabs">
+      <button id="auth-tab-login" class="auth-tab active" onclick="switchAuthMode('login')">Connexion</button>
+      <button id="auth-tab-signup" class="auth-tab" onclick="switchAuthMode('signup')">Créer un compte</button>
+    </div>
+
+    <div class="auth-field">
+      <label for="auth-email">Adresse email</label>
+      <input type="email" id="auth-email" autocomplete="email" placeholder="toi@exemple.com"
+             onkeydown="if(event.key==='Enter') document.getElementById('auth-password').focus()">
+    </div>
+    <div class="auth-field">
+      <label for="auth-password">Mot de passe</label>
+      <input type="password" id="auth-password" autocomplete="current-password" placeholder="8 caractères minimum"
+             onkeydown="if(event.key==='Enter') submitAuth()">
+    </div>
+
+    <div id="auth-error" class="auth-error" style="display:none;"></div>
+    <div id="auth-info" class="auth-info" style="display:none;"></div>
+
+    <button class="primary auth-submit" id="auth-submit" onclick="submitAuth()">Se connecter</button>
+    <button class="auth-link" id="auth-forgot" onclick="sendResetEmail()">Mot de passe oublié ?</button>
+
+    <p class="auth-note">Tes données sont hébergées en Europe et ne sont visibles que par toi.</p>
+  </div>
+</div>
+
+<div class="app" id="app-root" style="display:none;">
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand">Fonte<span>.</span></div>
+      <div class="streak-badge" id="streak-badge">🔥 <span id="streak-count">0</span> sem.</div>
+    </div>
+    <nav class="tabs" id="nav-tabs">
+      <span class="nav-slider" id="nav-slider"></span>
+      <button data-view="accueil" class="active">Accueil <span class="tab-badge" id="tab-badge-accueil" style="display:none;"></span></button>
+      <button data-view="mensurations">Mensurations</button>
+      <button data-view="performances">Performances</button>
+      <button data-view="suivi">Suivi hebdo</button>
+      <button data-view="analyse">Analyse</button>
+      <button data-view="amis">Amis <span class="tab-badge" id="tab-badge-amis" style="display:none;"></span></button>
+    </nav>
+    <span class="nav-week" id="nav-week"></span>
+    <button class="nav-avatar" id="nav-avatar" onclick="openSettings()" title="Réglages du compte">💪</button>
+    <button class="nav-logout" onclick="signOut()" title="Se déconnecter">⏻</button>
+    <button class="nav-burger" id="nav-burger" onclick="toggleBurger()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <div class="burger-menu" id="burger-menu">
+    <button class="burger-item" data-burger-view="accueil">Accueil <span class="tab-badge" id="burger-badge-accueil" style="display:none;"></span></button>
+    <button class="burger-item" data-burger-view="mensurations">Mensurations</button>
+    <button class="burger-item" data-burger-view="performances">Performances</button>
+    <button class="burger-item" data-burger-view="suivi">Suivi hebdo</button>
+    <button class="burger-item" data-burger-view="analyse">Analyse</button>
+    <button class="burger-item" data-burger-view="amis">Amis <span class="tab-badge" id="burger-badge-amis" style="display:none;"></span></button>
+    <div class="burger-sep"></div>
+    <button class="burger-item burger-settings" onclick="openSettings(); closeBurger();">
+      <span id="burger-avatar">💪</span> Réglages du compte
+    </button>
+    <button class="burger-item" onclick="signOut()">⏻ Se déconnecter</button>
+  </div>
+
+  <div id="loading" class="loading">Chargement du carnet…<div class="bar"></div></div>
+
+  <div class="view-stack">
+  <!-- ACCUEIL -->
+  <div class="view active" id="view-accueil">
+    <section class="hero">
+      <div class="profile-card">
+        <div class="profile-top">
+          <div class="profile-level-ring">
+            <span class="profile-level-label">NIV</span>
+            <span class="profile-level-num" id="hero-level-num">0</span>
+          </div>
+          <div class="profile-identity">
+            <div class="profile-eyebrow">Carnet de performance personnel · <span id="profile-week"></span></div>
+            <h1 class="profile-name" id="hero-pseudo"></h1>
+            <div class="profile-rank-row">
+              <span class="profile-rank" id="hero-level-rank">Débutant</span>
+              <span class="profile-streak" id="hero-streak-chip" style="display:none;"></span>
+            </div>
+          </div>
+          <button class="profile-share" onclick="openShareProfile()" title="Partager mon profil">
+            <span>🔗</span> Partager
+          </button>
+          <div class="profile-weight" id="hero-weight-block" style="display:none;">
+            <span class="profile-weight-num" id="hero-weight-num">0</span>
+            <span class="profile-weight-unit">kg</span>
+            <span class="profile-weight-label">Poids actuel</span>
+          </div>
+        </div>
+
+        <div class="profile-xp">
+          <div class="profile-xp-bar"><div class="profile-xp-fill" id="hero-xp-fill"></div></div>
+          <div class="profile-xp-caption">
+            <span id="hero-xp-total">0 XP</span>
+            <span id="hero-xp-next">— XP avant le niveau suivant</span>
+          </div>
+        </div>
+
+        <div class="profile-stats">
+          <div class="profile-stat"><span class="profile-stat-num" data-key="weeks">0</span><span class="profile-stat-label">Semaines suivies</span></div>
+          <div class="profile-stat"><span class="profile-stat-num" data-key="exos">0</span><span class="profile-stat-label">Exercices suivis</span></div>
+          <div class="profile-stat"><span class="profile-stat-num" data-key="volume">0</span><span class="profile-stat-label">Kg cette semaine</span></div>
+          <div class="profile-stat"><span class="profile-stat-num" data-key="streak">0</span><span class="profile-stat-label">Semaines d'affilée</span></div>
+        </div>
+      </div>
+    </section>
+    <div class="card" id="next-milestone" style="display:none;"></div>
+    <div class="card" id="suggested-seance" style="display:none;"></div>
+    <div class="card" id="activite-sociale" style="display:none;"></div>
+    <div class="card" id="fil-amis" style="display:none;"></div>
+    <div id="home-reminder"></div>
+    <div class="card" id="monthly-summary"></div>
+
+    <div id="home-content"></div>
+  </div>
+
+  <!-- MENSURATIONS -->
+  <div class="view" id="view-mensurations">
+    <div class="card-duo">
+      <div class="card">
+        <h2>Objectifs <button class="help-btn" onclick="toggleHelp('help-obj')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Fixe les mensurations que tu vises : tour de bras, de pectoraux, de taille… et ton poids cible.</p>
+          <div class="help-box" id="help-obj">
+            <strong>À quoi ça sert ?</strong><br>
+            Une fois tes objectifs définis, une ligne repère apparaît sur tes graphiques d'évolution et le carnet t'indique
+            ce qu'il te reste à parcourir. C'est entièrement facultatif : tu peux n'en renseigner qu'un seul, ou aucun.
+          </div>
+          <div id="obj-mensu-recap"></div>
+        </div>
+        <button class="primary" id="obj-mensu-btn" onclick="startWizard('objectifs')">Définir mes objectifs</button>
+      </div>
+
+      <div class="card">
+        <h2>Mesure de la semaine <button class="help-btn" onclick="toggleHelp('help-mensu')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Relève ton tour de pectoraux, bras, épaules, jambes et taille — une fois par semaine suffit.<br>
+            📷 Tu peux joindre une photo à la dernière étape pour comparer visuellement deux semaines.</p>
+          <div class="help-box" id="help-mensu">
+            <strong>Comment s'en servir ?</strong><br>
+            Mesure-toi toujours dans les mêmes conditions (même moment de la journée, à froid) pour que la comparaison ait du sens.
+            Une seule mesure par semaine est conservée : si tu recommences, elle est mise à jour, pas dupliquée.
+            Tu peux joindre une photo pour comparer visuellement deux semaines plus tard.
+          </div>
+          <div class="info-line" id="mensu-week-info"></div>
+          <div id="mensu-recap"></div>
+        </div>
+        <button class="primary" id="mensu-btn" onclick="startWizard('mensurations')">Ajouter mes mesures</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Comparer deux semaines <span class="tag">photos</span></h2>
+      <div class="chart-controls">
+        <select id="compare-week-a"></select>
+        <select id="compare-week-b"></select>
+        <button class="ghost" onclick="renderComparison()">Comparer</button>
+      </div>
+      <div id="compare-holder"><p class="empty">Ajoute des photos sur au moins deux semaines pour activer la comparaison.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Évolution</h2>
+      <div class="chart-controls">
+        <select id="mensu-chart-select" onchange="renderMensuChart()">
+          <option value="pec">Pectoraux</option>
+          <option value="bras">Bras</option>
+          <option value="epaule">Épaules</option>
+          <option value="jambe">Jambes</option>
+          <option value="taille">Taille</option>
+        </select>
+      </div>
+      <div id="mensu-chart-holder"></div>
+      <div id="mensu-goal"></div>
+    </div>
+
+    <div class="card">
+      <h2>Historique</h2>
+      <div id="mensu-history"></div>
+    </div>
+  </div>
+
+  <!-- PERFORMANCES -->
+  <div class="view" id="view-performances">
+    <div class="card-duo">
+      <div class="card">
+        <h2>Mes exercices <button class="help-btn" onclick="toggleHelp('help-exo')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Crée les mouvements que tu pratiques. Ils deviennent ensuite sélectionnables dans tes séances.</p>
+          <div class="help-box" id="help-exo">
+            <strong>À quoi ça sert ?</strong><br>
+            Chaque exercice peut recevoir un objectif de charge : le carnet affiche alors ta progression vers ce poids.
+            Supprimer un exercice efface aussi toutes les séries qui lui sont rattachées.
+          </div>
+          <div id="exo-list"></div>
+        </div>
+        <button class="primary" onclick="startWizard('exercice')">Ajouter un exercice</button>
+      </div>
+
+      <div class="card">
+        <h2>Mes séances <button class="help-btn" onclick="toggleHelp('help-seance')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Enregistre les exercices travaillés, avec le poids et les répétitions de chaque série. Saisie possible sur les 3 derniers jours.</p>
+          <div class="help-box" id="help-seance">
+            <strong>Une seule séance par jour</strong><br>
+            Tu peux enregistrer une séance sur les trois derniers jours — oublier de la saisir le soir même
+            ne doit pas te coûter ta semaine. En revanche, une seule séance par journée : tu peux la modifier
+            autant que tu veux, mais pas en créer une seconde. C'est cette limite qui garantit que l'XP
+            récompense la régularité réelle et non la saisie répétée.
+            Supprimer une séance annule l'XP et les records qu'elle avait rapportés.
+          </div>
+          <div class="info-line" id="perf-week-info"></div>
+          <div id="seance-recap"></div>
+        </div>
+        <button class="primary" id="seance-btn" onclick="startWizard('seance')">Ajouter la séance du jour</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Progression</h2>
+      <div class="perf-subtabs">
+        <button class="perf-subtab active" data-mode="exo" onclick="setPerfSubview('exo')">Par exercice</button>
+        <button class="perf-subtab" data-mode="week" onclick="setPerfSubview('week')">Vue par semaine</button>
+      </div>
+
+      <div id="perf-exo-view">
+        <div class="chart-controls">
+          <select id="perf-chart-select" onchange="renderPerfChart();renderPerfHistory();"></select>
+          <select id="perf-metric-select" onchange="renderPerfChart()">
+            <option value="max">Poids max</option>
+            <option value="volume">Volume total (poids×reps)</option>
+          </select>
+        </div>
+        <div id="perf-chart-holder"></div>
+        <div id="perf-goal"></div>
+        <div id="perf-history" style="margin-top:14px;"></div>
+      </div>
+
+      <div id="perf-week-view" style="display:none;">
+        <div class="chart-controls">
+          <select id="perf-week-select" onchange="renderPerfWeekView()"></select>
+        </div>
+        <div id="perf-week-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUIVI HEBDO -->
+  <div class="view" id="view-suivi">
+    <div class="card">
+      <h2>Rappel hebdomadaire <span class="tag">optionnel</span></h2>
+      <p style="font-family:var(--font-body);font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">Choisis un jour : si tu n'as pas encore rempli ton suivi de la semaine ce jour-là, une fenêtre te le rappellera à l'ouverture du carnet.</p>
+      <div class="form-grid">
+        <div class="field"><label>Jour du rappel</label>
+          <select id="reminder-day-select">
+            <option value="">Aucun</option>
+            <option value="lundi">Lundi</option>
+            <option value="mardi">Mardi</option>
+            <option value="mercredi">Mercredi</option>
+            <option value="jeudi">Jeudi</option>
+            <option value="vendredi">Vendredi</option>
+            <option value="samedi">Samedi</option>
+            <option value="dimanche">Dimanche</option>
+          </select>
+        </div>
+      </div>
+      <button class="ghost" onclick="saveReminderSettings()">Enregistrer</button>
+    </div>
+
+    <div class="card">
+      <h2>Suivi de la semaine <button class="help-btn" onclick="toggleHelp('help-suivi')" aria-label="Aide">i</button></h2>
+      <p class="block-intro">Ton poids, tes calories moyennes par jour et ton tour de taille — un relevé hebdomadaire, pas quotidien.</p>
+      <div class="help-box" id="help-suivi">
+        <strong>Pourquoi une fois par semaine ?</strong><br>
+        Le poids fluctue beaucoup d'un jour à l'autre (eau, digestion, sommeil) : un relevé hebdomadaire donne une
+        tendance bien plus fiable qu'un suivi quotidien.<br><br>
+        <strong>Bonus du dimanche :</strong> faire ton bilan le dimanche rapporte 5 XP supplémentaires.
+        Rien ne t'y oblige — tu peux saisir n'importe quel jour de la semaine sans rien perdre d'autre.
+      </div>
+      <div class="info-line" id="suivi-week-info"></div>
+      <div id="suivi-recap"></div>
+      <button class="primary" id="suivi-btn" onclick="startWizard('suivi')">Ajouter mon suivi</button>
+    </div>
+
+    <div class="card">
+      <h2>Évolution</h2>
+      <div class="chart-controls">
+        <select id="suivi-chart-select" onchange="renderSuiviChart()">
+          <option value="poids">Poids</option>
+          <option value="taille">Tour de taille</option>
+          <option value="calories">Calories</option>
+        </select>
+      </div>
+      <div id="suivi-chart-holder"></div>
+      <div id="suivi-goal"></div>
+    </div>
+
+    <div class="card">
+      <h2>Historique</h2>
+      <div id="suivi-history"></div>
+    </div>
+  </div>
+
+  <!-- RECORDS -->
+  <div class="view" id="view-analyse">
+    <div class="card">
+      <h2>Assiduité</h2>
+      <div class="chart-controls">
+        <select id="heatmap-year-select" onchange="renderHeatmap()"></select>
+      </div>
+      <div class="heatmap-grid" id="heatmap-grid"></div>
+      <div id="heatmap-summary" class="sem-info" style="margin:10px 0;"></div>
+      <div class="heatmap-legend">
+        <span>Moins</span>
+        <span class="heat-cell level-0"></span><span class="heat-cell level-1"></span><span class="heat-cell level-2"></span><span class="heat-cell level-3"></span>
+        <span>Plus</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Constance</h2>
+      <div class="milestone-label">Semaines suivies</div>
+      <div id="track-weeks"></div>
+      <div class="milestone-label" style="margin-top:28px;">Semaines d'affilée 🔥</div>
+      <div id="track-streak"></div>
+    </div>
+    <div class="card">
+      <h2>Records personnels</h2>
+      <div id="pr-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Calories vs Volume soulevé</h2>
+      <div id="corr-calories-volume"></div>
+    </div>
+    <div class="card">
+      <h2>Poids vs Volume soulevé</h2>
+      <div id="corr-poids-volume"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-amis">
+    <div class="card">
+      <h2>Trouver quelqu'un <button class="help-btn" onclick="toggleHelp('help-amis')" aria-label="Aide">i</button></h2>
+      <p class="block-intro">Cherche une personne par son pseudo pour lui envoyer une demande d'ami.</p>
+      <div class="help-box" id="help-amis">
+        <strong>Ce que voient les autres</strong><br>
+        Sans être ton ami, une personne ne voit que ton pseudo, ton avatar, ton niveau et ta série de semaines.
+        Une fois amis, elle voit en plus tes semaines suivies, tes exercices, ton volume de la semaine et tes records.<br><br>
+        <strong>Ce que personne ne voit jamais :</strong> tes mensurations, ton poids, tes calories et tes notes.
+        Ces données restent strictement privées, même entre amis.
+      </div>
+      <div class="search-row">
+        <input type="text" id="amis-search" placeholder="Pseudo à rechercher…" autocomplete="off"
+               onkeydown="if(event.key==='Enter') chercherAmis()">
+        <button class="primary" onclick="chercherAmis()">Chercher</button>
+      </div>
+      <div id="amis-search-results"></div>
+    </div>
+
+    <div class="card" id="amis-requests-card" style="display:none;">
+      <h2>Demandes reçues</h2>
+      <div id="amis-requests"></div>
+    </div>
+
+    <div class="card">
+      <h2>Mes amis</h2>
+      <p class="block-intro">Leur régularité, pas leurs charges — comparer des poids entre gabarits différents n'apprend rien d'utile.</p>
+      <div id="amis-list"></div>
+    </div>
+
+    <div class="card" id="amis-sent-card" style="display:none;">
+      <h2>Demandes envoyées</h2>
+      <div id="amis-sent"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-profil">
+    <button class="ghost" onclick="quitterProfil()" style="margin-bottom:18px;">&larr; Retour</button>
+    <div id="profil-content"></div>
+  </div>
+
+  <div class="view" id="view-reglages">
+    <div class="card">
+      <h2>Profil</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Avatar</strong>
+          <span>Visible sur ton accueil et dans la barre du haut.</span>
+        </div>
+        <div class="avatar-picker" id="settings-avatar-picker"></div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Pseudo</strong>
+          <span>Unique, et modifiable une fois par mois.<br>Entre 2 et 24 caractères : lettres, chiffres, espaces, tirets et points.</span>
+        </div>
+        <div class="settings-control">
+          <input type="text" id="settings-pseudo" maxlength="24" placeholder="Ton pseudo">
+          <button class="small" onclick="saveSettingsPseudo()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Apparence</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Partager mes séances</strong>
+          <span>Tes amis verront les séances de la semaine en cours — dates, exercices et volume.<br>
+            Les semaines passées, tes mensurations et ton suivi restent privés dans tous les cas.</span>
+        </div>
+        <div class="settings-control">
+          <div class="theme-toggle">
+            <button class="theme-btn" data-partage="oui" onclick="setPartageSeances(true)">Amis</button>
+            <button class="theme-btn" data-partage="non" onclick="setPartageSeances(false)">Privé</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Apparence</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Thème</strong>
+          <span>Ce réglage est propre à cet appareil.</span>
+        </div>
+        <div class="settings-control">
+          <div class="theme-toggle">
+            <button class="theme-btn" data-theme-value="dark" onclick="setTheme('dark')">🌙 Sombre</button>
+            <button class="theme-btn" data-theme-value="light" onclick="setTheme('light')">☀️ Clair</button>
+            <button class="theme-btn" data-theme-value="auto" onclick="setTheme('auto')">Auto</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Compte</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Adresse email</strong>
+          <span id="settings-email">—</span>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Mot de passe</strong>
+          <span>Au moins 8 caractères.</span>
+        </div>
+        <div class="settings-control">
+          <input type="password" id="settings-password" placeholder="Nouveau mot de passe" autocomplete="new-password">
+          <button class="small" onclick="changePassword()">Modifier</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Session</strong>
+          <span>Tu devras te reconnecter ensuite.</span>
+        </div>
+        <div class="settings-control">
+          <button class="ghost" onclick="signOut()">Se déconnecter</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Aide</h2>
+      <p class="empty" style="margin-bottom:14px;">Revoir la présentation rapide des fonctionnalités du carnet.</p>
+      <button class="ghost" onclick="startDemo()">▶️ Revoir la démo</button>
+    </div>
+
+    <div class="card danger-zone">
+      <h2>Zone de danger</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Supprimer mon compte</strong>
+          <span>Efface définitivement ton compte et l'intégralité de ton carnet. Cette action est irréversible.</span>
+        </div>
+        <div class="settings-control">
+          <button class="ghost danger" onclick="openDeleteAccountModal()">Supprimer mon compte</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="footer-actions">
+      <button class="ghost" onclick="openExportModal()">💾 Exporter mes données (JSON)</button>
+      <button class="ghost" onclick="openImportModal()">📥 Importer des données</button>
+    </div>
+    <div class="footer-note">FONTE<span>.</span> — Ton carnet, synchronisé et privé.
+      <span class="footer-version" id="footer-version"></span></div>
+  </footer>
+</div>
+
+<div id="onboarding" style="display:none;">
+  <div class="onb-card">
+    <div class="onb-progress"><div class="onb-progress-fill" id="onb-progress"></div></div>
+
+    <div class="onb-step" id="onb-step-1">
+      <div class="onb-eyebrow">Étape 1 sur 2</div>
+      <h2 class="onb-title">Choisis ton pseudo</h2>
+      <p class="onb-text">C'est le nom qui s'affichera en haut de ton carnet, et celui par lequel tes amis pourront te trouver.
+        Il doit être unique — si quelqu'un l'a déjà pris, il faudra en choisir un autre.</p>
+      <input type="text" id="onb-pseudo" maxlength="24" placeholder="ex : Maxime"
+             onkeydown="if(event.key==='Enter') onbNext()">
+      <p class="pseudo-rules">Entre 2 et 24 caractères. Lettres, chiffres, espaces, tirets et points uniquement.</p>
+      <div id="onb-error" class="auth-error" style="display:none;"></div>
+      <button class="primary onb-btn" onclick="onbNext()">Continuer</button>
+    </div>
+
+    <div class="onb-step" id="onb-step-2" style="display:none;">
+      <div class="onb-eyebrow">Étape 2 sur 2</div>
+      <h2 class="onb-title">Choisis ton avatar</h2>
+      <p class="onb-text">Il apparaîtra à côté de ton pseudo et dans la barre du haut.</p>
+      <div class="avatar-picker" id="onb-avatar-picker"></div>
+      <button class="primary onb-btn" onclick="finishOnboarding(true)">Terminer et voir la démo</button>
+      <button class="auth-link" onclick="finishOnboarding(false)">Passer la démo</button>
+    </div>
+  </div>
+</div>
+
+<div id="demo-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeDemo()">
+  <div class="modal-card" style="max-width:460px;">
+    <div class="demo-visual" id="demo-visual">💪</div>
+    <h3 id="demo-title">Bienvenue</h3>
+    <p class="demo-text" id="demo-text"></p>
+    <div class="demo-dots" id="demo-dots"></div>
+    <div class="modal-actions">
+      <button class="small" onclick="closeDemo()">Passer</button>
+      <button class="primary" id="demo-next" onclick="demoNext()">Suivant</button>
+    </div>
+  </div>
+</div>
+
+<div id="delete-account-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeDeleteAccountModal()">
+  <div class="modal-card" style="max-width:440px;">
+    <h3>Supprimer définitivement ton compte</h3>
+    <p class="demo-text">
+      Ton compte, tes mensurations, tes séances, ton suivi et tes photos seront
+      effacés pour de bon. <strong>Il n'existe aucun moyen de revenir en arrière.</strong>
+    </p>
+    <p class="demo-text" style="margin-bottom:14px;">
+      Pense à exporter ton carnet en JSON avant, si tu veux en garder une trace.
+    </p>
+    <button class="ghost" style="width:100%;margin-bottom:16px;" onclick="openExportModal()">💾 Exporter mes données d'abord</button>
+
+    <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);margin-bottom:6px;">
+      Tape SUPPRIMER pour confirmer
+    </label>
+    <input type="text" id="delete-account-confirm" placeholder="SUPPRIMER" autocomplete="off"
+           oninput="checkDeleteAccountInput()"
+           style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--glass-border);background:var(--glass-tint);color:var(--ink);font-family:var(--font-mono);font-size:14px;">
+
+    <div class="modal-actions">
+      <button class="small" onclick="closeDeleteAccountModal()">Annuler</button>
+      <button class="primary" id="delete-account-btn" disabled onclick="confirmDeleteAccount()">Supprimer mon compte</button>
+    </div>
+  </div>
+</div>
+
+<div id="wizard-modal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card wizard-card">
+    <div class="wiz-head">
+      <div>
+        <div class="wiz-eyebrow" id="wiz-eyebrow"></div>
+        <h3 id="wiz-title">—</h3>
+      </div>
+      <button class="wiz-close" onclick="closeWizard()" aria-label="Fermer">✕</button>
+    </div>
+    <div class="wiz-progress"><div class="wiz-progress-fill" id="wiz-progress"></div></div>
+    <div class="wiz-body" id="wiz-body"></div>
+    <div class="wiz-actions">
+      <button class="small" id="wiz-back" onclick="wizBack()">Retour</button>
+      <button class="primary" id="wiz-next" onclick="wizNext()">Suivant</button>
+    </div>
+  </div>
+</div>
+
+<div id="share-profile-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeShareProfile()">
+  <div class="modal-card" style="max-width:420px;">
+    <h3>Partager mon profil</h3>
+    <p class="block-intro">Cette carte affiche ton pseudo, ton niveau, tes statistiques et tes records.
+      Tes mensurations, ton poids et tes notes restent privés.</p>
+    <div id="share-card-holder"></div>
+    <div class="modal-actions">
+      <button class="small" onclick="closeShareProfile()">Fermer</button>
+      <button class="small" onclick="copyProfileLink()">Copier le lien</button>
+      <button class="primary" onclick="downloadProfileCard()">Télécharger en JPG</button>
+    </div>
+  </div>
+</div>
+
+<div id="dialog-modal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card" style="max-width:400px;">
+    <h3 id="dialog-titre">—</h3>
+    <p class="dialog-texte" id="dialog-texte"></p>
+    <div class="modal-actions" id="dialog-actions"></div>
+  </div>
+</div>
+
+<div id="offline-banner">
+  <span class="offline-dot"></span>
+  Hors ligne — tes modifications ne sont pas enregistrées tant que la connexion n'est pas revenue.
+</div>
+
+<div id="xp-stack"></div>
+<div id="toast"></div>
+
+<div id="export-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeExportModal()">
+  <div class="modal-card">
+    <h3>Exporter mes données</h3>
+    <p>Copie ce texte ou télécharge-le pour garder une sauvegarde de tout ton carnet (mensurations, exercices, séances, suivi, objectifs).</p>
+    <textarea id="export-text" readonly></textarea>
+    <div class="modal-actions">
+      <button class="small" onclick="closeExportModal()">Fermer</button>
+      <button class="ghost" onclick="copyExport()">Copier</button>
+      <button class="primary" onclick="downloadExport()">Télécharger</button>
+    </div>
+  </div>
+</div>
+
+<div id="import-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeImportModal()">
+  <div class="modal-card">
+    <h3>Importer des données</h3>
+    <p>Charge un fichier exporté depuis FONTE, ou colle directement le JSON ci-dessous. Les photos ne sont pas incluses (elles ne sont pas dans les exports).</p>
+    <input type="file" accept="application/json,.json" id="import-file" class="photo-input" onchange="handleImportFile(event)">
+    <textarea id="import-text" placeholder="Colle ici le contenu JSON exporté..."></textarea>
+    <div class="modal-actions">
+      <button class="small" onclick="closeImportModal()">Annuler</button>
+      <button class="ghost" onclick="runImport('merge')">Fusionner</button>
+      <button class="primary" onclick="runImport('replace')">Remplacer tout</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="reminder-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) dismissReminder()">
+  <div class="modal-card">
+    <h3>📅 Rappel hebdo</h3>
+    <p>C'est le jour que tu as choisi pour ton suivi de la semaine. Prends 30 secondes pour indiquer ton poids, ton tour de taille et tes calories.</p>
+    <div class="modal-actions">
+      <button class="small" onclick="dismissReminder()">Plus tard</button>
+      <button class="primary" onclick="goToSuiviFromReminder()">Remplir maintenant</button>
+    </div>
+  </div>
+</div>
+
+<div id="photo-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closePhotoModal()">
+  <div class="modal-card" style="max-width:440px;">
+    <h3 id="photo-modal-title">Photo</h3>
+    <img id="photo-modal-img" style="width:100%;border-radius:4px;display:block;">
+    <div class="modal-actions"><button class="small" onclick="closePhotoModal()">Fermer</button></div>
+  </div>
+</div>
+
+
+
+<script src="app.js"></script>
+</body>
+</html>
