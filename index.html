@@ -6,7 +6,7 @@
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<link rel="stylesheet" href="style.css?v=360">
+<link rel="stylesheet" href="style.css?v=370">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -97,6 +97,7 @@
   <div class="view-stack">
   <!-- ACCUEIL -->
   <div class="view active" id="view-accueil">
+    <div id="bilan-banniere"></div>
     <div class="card" id="fil-actu"></div>
   </div>
 
@@ -706,6 +707,14 @@
   </div>
 </div>
 
+<div id="bilan-screen">
+  <button class="bilan-quit" onclick="fermerBilan()" aria-label="Fermer">✕</button>
+  <div class="bilan-barres" id="bilan-barres"></div>
+  <div class="bilan-scene" id="bilan-scene"></div>
+  <button class="bilan-zone bilan-prec" onclick="bilanPrec()" aria-label="Précédent"></button>
+  <button class="bilan-zone bilan-suiv" onclick="bilanSuiv()" aria-label="Suivant"></button>
+</div>
+
 <div id="xp-stack"></div>
 <div id="toast"></div>
 
@@ -758,6 +767,6 @@
 
 
 
-<script src="app.js?v=360"></script>
+<script src="app.js?v=370"></script>
 </body>
 </html>

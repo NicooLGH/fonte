@@ -457,6 +457,7 @@ async function loadAll(){
   if(selEq) selEq.addEventListener('change', renderEquilibre);
   const selSuivi = document.getElementById('suivi-field-select');
   if(selSuivi) selSuivi.addEventListener('change', renderSuiviChart);
+  safe('bilan', renderBilanBanniere);
   safe('presence', demarrerPresence);
   safe('nav basse', majBottomNav);
   safe('jalon', chargerJalonChoisi);
@@ -490,7 +491,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.6.0';
+const APP_VERSION = 'v3.7.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -1432,7 +1433,8 @@ function renderModeles(){
     el.innerHTML = '<p class="recap-empty">Aucun modele. Cree ta premiere seance type pour pouvoir la lancer en direct.</p>';
     return;
   }
-  el.innerHTML = modeles.map(function(m){
+  const p = partie('modeles', modeles);
+  el.innerHTML = p.visibles.map(function(m){
     const noms = m.exercices.map(function(bloc){
       const id = typeof bloc === 'string' ? bloc : bloc.id;
       const e = exercices.find(function(x){ return x.id === id; });
@@ -1447,7 +1449,7 @@ function renderModeles(){
         (noms.length ? '<button class="go" onclick="demarrerLive(\'' + m.id + '\')">Demarrer</button>' : '') +
         '<button onclick="supprimerModele(\'' + m.id + '\')">Supprimer</button>' +
       '</div></div>';
-  }).join('');
+  }).join('') + p.bouton;
 }
 
 async function supprimerModele(id){
@@ -1587,6 +1589,431 @@ function buildModeleWizard(){
       }catch(e){ showToast('Creation impossible'); }
     }
   };
+}
+
+
+// ============================================================
+//  BILAN MENSUEL
+// ============================================================
+// Visible le 1er du mois suivant, pendant sept jours. Tout est
+// calcule a partir des donnees deja chargees : aucun appel
+// supplementaire a la base.
+const BILAN_JOURS = 7;
+
+function moisPrecedent(){
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return {annee: d.getFullYear(), mois: d.getMonth()};   // mois : 0-11
+}
+
+function clefMois(m){ return m.annee + '-' + String(m.mois + 1).padStart(2, '0'); }
+
+function nomMois(m){
+  return new Date(m.annee, m.mois, 1)
+    .toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
+}
+
+// Le bilan reste affiche la premiere semaine du mois suivant
+function bilanDisponible(){
+  return new Date().getDate() <= BILAN_JOURS;
+}
+
+function cleBilanVu(){ return 'fonte-bilan-vu:' + (currentUser ? currentUser.id : ''); }
+
+function computeBilan(m){
+  const prefixe = clefMois(m);
+  const dansMois = function(d){ return String(d).startsWith(prefixe); };
+
+  const seances = performances.filter(function(p){ return dansMois(p.date); });
+  const releves = suivi.filter(function(x){ return dansMois(x.date); });
+
+  let volume = 0, series = 0;
+  const parGroupe = {};
+  seances.forEach(function(p){
+    p.exercices.forEach(function(b){
+      const exo = exercices.find(function(e){ return e.id === b.exoId; });
+      const cle = (exo && exo.groupe) ? exo.groupe : 'non_classe';
+      b.sets.forEach(function(st){
+        volume += st.poids * st.reps;
+        series++;
+        parGroupe[cle] = (parGroupe[cle] || 0) + st.poids * st.reps;
+      });
+    });
+  });
+
+  // Records battus pendant le mois
+  const records = [];
+  exercices.forEach(function(exo){
+    const toutes = getExoEntries(exo.id);
+    if(toutes.length < 2) return;
+    let max = Math.max.apply(null, toutes[0].sets.map(function(x){ return x.poids; }));
+    let meilleur = null;
+    for(let i = 1; i < toutes.length; i++){
+      const m2 = Math.max.apply(null, toutes[i].sets.map(function(x){ return x.poids; }));
+      if(m2 > max){
+        max = m2;
+        if(dansMois(toutes[i].date)) meilleur = {nom: exo.name, poids: m2};
+      }
+    }
+    if(meilleur) records.push(meilleur);
+  });
+  records.sort(function(a,b){ return b.poids - a.poids; });
+
+  // Objectifs atteints pendant le mois
+  const objAtteints = exercices.filter(function(e){
+    if(e.objectif == null) return false;
+    const ent = getExoEntries(e.id).filter(function(x){ return dansMois(x.date); });
+    if(!ent.length) return false;
+    const mx = Math.max.apply(null, ent.flatMap(function(x){
+      return x.sets.map(function(y){ return y.poids; });
+    }));
+    return mx >= e.objectif;
+  }).map(function(e){ return {nom: e.name, objectif: e.objectif}; });
+
+  // Evolution des mesures : premier vs dernier releve du mois
+  const tries = releves.slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+  const evo = {};
+  if(tries.length >= 2){
+    SUIVI_FIELDS.forEach(function(f){
+      const avec = tries.filter(function(r){ return r[f.key] != null; });
+      if(avec.length >= 2){
+        const diff = +(avec[avec.length-1][f.key] - avec[0][f.key]).toFixed(1);
+        if(diff !== 0) evo[f.key] = {label: f.label, unit: f.unit, diff: diff,
+                                      fin: avec[avec.length-1][f.key]};
+      }
+    });
+  }
+
+  const caloriesMoy = (function(){
+    const avec = releves.filter(function(r){ return r.calories != null; });
+    if(!avec.length) return null;
+    return Math.round(avec.reduce(function(t,r){ return t + r.calories; }, 0) / avec.length);
+  })();
+
+  const semaines = new Set(seances.map(function(p){ return p.weekKey; })).size;
+  const dureeTotale = seances.reduce(function(t,p){ return t + (p.dureeSec || 0); }, 0);
+
+  const groupeTop = Object.keys(parGroupe).sort(function(a,b){
+    return parGroupe[b] - parGroupe[a];
+  })[0] || null;
+
+  return {
+    mois: m, nomMois: nomMois(m),
+    nbSeances: seances.length, volume: Math.round(volume), series: series,
+    semaines: semaines, dureeTotale: dureeTotale,
+    records: records, objectifs: objAtteints,
+    nbReleves: releves.length, evolution: evo, calories: caloriesMoy,
+    groupeTop: groupeTop, parGroupe: parGroupe,
+    vide: seances.length === 0 && releves.length === 0
+  };
+}
+
+// ---- Banniere sur l'accueil ----
+function renderBilanBanniere(){
+  const el = document.getElementById('bilan-banniere');
+  if(!el) return;
+  if(!bilanDisponible()){ el.innerHTML = ''; return; }
+
+  const m = moisPrecedent();
+  const b = computeBilan(m);
+  if(b.vide){ el.innerHTML = ''; return; }
+
+  let vu = null;
+  try{ vu = localStorage.getItem(cleBilanVu()); }catch(e){}
+  const dejaVu = vu === clefMois(m);
+
+  el.innerHTML =
+    '<button class="bilan-carte' + (dejaVu ? ' vu' : '') + '" onclick="ouvrirBilan()">' +
+      '<div class="bilan-carte-eyebrow">' + (dejaVu ? 'Revoir' : 'Nouveau') + '</div>' +
+      '<div class="bilan-carte-titre">Ton bilan de<br>' + b.nomMois + '</div>' +
+      '<div class="bilan-carte-sous">' + b.nbSeances + ' seance(s) &middot; ' +
+        b.volume.toLocaleString('fr-FR') + ' kg souleves</div>' +
+      '<span class="bilan-carte-go">' + (dejaVu ? 'Revoir' : 'Decouvrir') + ' \u2192</span>' +
+    '</button>';
+}
+
+// ---- Deroule ----
+let bilanData = null;
+let bilanIndex = 0;
+let bilanEcrans = [];
+
+function ouvrirBilan(){
+  bilanData = computeBilan(moisPrecedent());
+  bilanEcrans = construireEcransBilan(bilanData);
+  bilanIndex = 0;
+  document.getElementById('bilan-screen').classList.add('actif');
+  document.body.style.overflow = 'hidden';
+  try{ localStorage.setItem(cleBilanVu(), clefMois(bilanData.mois)); }catch(e){}
+  renderBilanEcran();
+}
+
+function fermerBilan(){
+  document.getElementById('bilan-screen').classList.remove('actif');
+  document.body.style.overflow = '';
+  renderBilanBanniere();
+}
+
+function bilanSuiv(){
+  if(bilanIndex < bilanEcrans.length - 1){ bilanIndex++; renderBilanEcran(); }
+  else fermerBilan();
+}
+function bilanPrec(){
+  if(bilanIndex > 0){ bilanIndex--; renderBilanEcran(); }
+}
+
+function renderBilanEcran(){
+  const scene = document.getElementById('bilan-scene');
+  scene.innerHTML = bilanEcrans[bilanIndex].html;
+  scene.classList.remove('anim');
+  void scene.offsetWidth;   // force le redemarrage de l'animation
+  scene.classList.add('anim');
+
+  document.getElementById('bilan-barres').innerHTML =
+    bilanEcrans.map(function(_, i){
+      return '<span class="bilan-barre' + (i <= bilanIndex ? ' vue' : '') + '"></span>';
+    }).join('');
+}
+
+function construireEcransBilan(b){
+  const ecrans = [];
+  const gros = function(v){ return '<div class="bl-gros">' + v + '</div>'; };
+
+  ecrans.push({html:
+    '<div class="bl-eyebrow">Bilan mensuel</div>' +
+    '<h1 class="bl-titre">' + b.nomMois + '</h1>' +
+    '<p class="bl-texte">Voici ce que tu as accompli ce mois-ci.</p>' +
+    '<div class="bl-tap">Touche pour continuer</div>'});
+
+  ecrans.push({html:
+    '<div class="bl-eyebrow">Tes seances</div>' +
+    gros(b.nbSeances) +
+    '<p class="bl-texte">seance' + (b.nbSeances>1?'s':'') + ' enregistree' + (b.nbSeances>1?'s':'') +
+      ', reparties sur <strong>' + b.semaines + ' semaine' + (b.semaines>1?'s':'') + '</strong>.' +
+      (b.dureeTotale ? '<br>Soit <strong>' + dureeLisible(b.dureeTotale) + '</strong> passees a t\'entrainer.' : '') +
+    '</p>'});
+
+  ecrans.push({html:
+    '<div class="bl-eyebrow">Volume souleve</div>' +
+    gros(b.volume.toLocaleString('fr-FR') + '<small>kg</small>') +
+    '<p class="bl-texte">en <strong>' + b.series + ' series</strong>.' +
+      (b.groupeTop ? '<br>Groupe le plus travaille : <strong>' + nomGroupe(b.groupeTop) + '</strong>.' : '') +
+    '</p>'});
+
+  if(b.records.length){
+    ecrans.push({html:
+      '<div class="bl-eyebrow">Records battus</div>' +
+      gros(b.records.length) +
+      '<div class="bl-liste">' + b.records.slice(0,5).map(function(r){
+        return '<div class="bl-ligne"><span>' + String(r.nom).replace(/</g,'&lt;') + '</span>' +
+          '<strong>' + r.poids + ' kg</strong></div>';
+      }).join('') + '</div>'});
+  }
+
+  if(b.objectifs.length){
+    ecrans.push({html:
+      '<div class="bl-eyebrow">Objectifs atteints</div>' +
+      gros(b.objectifs.length) +
+      '<div class="bl-liste">' + b.objectifs.map(function(o){
+        return '<div class="bl-ligne"><span>' + String(o.nom).replace(/</g,'&lt;') + '</span>' +
+          '<strong>' + o.objectif + ' kg</strong></div>';
+      }).join('') + '</div>'});
+  }
+
+  const cles = Object.keys(b.evolution);
+  if(cles.length || b.calories){
+    ecrans.push({html:
+      '<div class="bl-eyebrow">Ton corps</div>' +
+      '<h2 class="bl-sous">Ce qui a bouge</h2>' +
+      '<div class="bl-liste">' + cles.filter(function(k){ return k !== 'calories'; }).map(function(k){
+        const e = b.evolution[k];
+        return '<div class="bl-ligne"><span>' + e.label + '</span>' +
+          '<strong class="' + (e.diff > 0 ? 'pos' : 'neg') + '">' +
+          (e.diff > 0 ? '+' : '') + e.diff + ' ' + e.unit + '</strong></div>';
+      }).join('') +
+      (b.calories ? '<div class="bl-ligne"><span>Calories moy./jour</span><strong>' +
+        b.calories + '</strong></div>' : '') +
+      '</div>' +
+      '<p class="bl-note">Ces chiffres ne quittent pas ton carnet.</p>'});
+  }
+
+  ecrans.push({html:
+    '<div class="bl-eyebrow">C\'est tout pour ' + b.nomMois + '</div>' +
+    '<h2 class="bl-sous">Garde une trace</h2>' +
+    '<p class="bl-texte">Deux cartes a telecharger : l\'une complete pour toi, ' +
+      'l\'autre sans ton poids ni tes mensurations, a partager sans arriere-pensee.</p>' +
+    '<div class="bl-boutons">' +
+      '<button class="primary" onclick="telechargerBilan(true)">Carte complete</button>' +
+      '<button class="ghost" onclick="telechargerBilan(false)">Carte partageable</button>' +
+    '</div>' +
+    '<button class="bl-fin" onclick="fermerBilan()">Terminer</button>'});
+
+  return ecrans;
+}
+
+
+// ---- Cartes telechargeables ----
+// Deux versions : l'une complete pour soi, l'autre sans le poids
+// ni les mensurations. La distinction n'est pas cosmetique :
+// ce sont des donnees de sante, et on ne les partage pas par
+// inadvertance.
+async function telechargerBilan(complet){
+  const b = bilanData;
+  if(!b) return;
+
+  try{
+    await document.fonts.load('400 90px "Bebas Neue"');
+    await document.fonts.load('400 30px "IBM Plex Mono"');
+    await document.fonts.load('600 30px Inter');
+  }catch(e){}
+
+  const W = 1080, H = 1350, M = 86;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#131519'); bg.addColorStop(1, '#0B0C0E');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  let g = ctx.createRadialGradient(W*0.12, H*0.04, 40, W*0.12, H*0.04, 780);
+  g.addColorStop(0, 'rgba(255,75,43,0.30)'); g.addColorStop(1, 'rgba(255,75,43,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  g = ctx.createRadialGradient(W*0.94, H*0.46, 40, W*0.94, H*0.46, 700);
+  g.addColorStop(0, 'rgba(76,201,240,0.20)'); g.addColorStop(1, 'rgba(76,201,240,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  function carte(x, y, w, h, r){
+    ctx.save(); ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.045)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+  }
+  function mono(t, x, y, size, color, align){
+    ctx.fillStyle = color; ctx.textAlign = align || 'left';
+    ctx.font = '400 ' + size + 'px "IBM Plex Mono", monospace';
+    ctx.fillText(t, x, y); ctx.textAlign = 'left';
+  }
+  function disp(t, x, y, size, color, align){
+    ctx.fillStyle = color; ctx.textAlign = align || 'left';
+    ctx.font = '400 ' + size + 'px "Bebas Neue", sans-serif';
+    ctx.fillText(t, x, y); ctx.textAlign = 'left';
+  }
+  function inter(t, x, y, size, color, weight, align){
+    ctx.fillStyle = color; ctx.textAlign = align || 'left';
+    ctx.font = (weight || '600') + ' ' + size + 'px Inter, sans-serif';
+    ctx.fillText(t, x, y); ctx.textAlign = 'left';
+  }
+
+  disp('FONTE', M, 104, 50, '#F4F3EE');
+  ctx.font = '400 50px "Bebas Neue", sans-serif';
+  disp('.', M + ctx.measureText('FONTE').width, 104, 50, '#FF4B2B');
+  mono('BILAN MENSUEL', W - M, 100, 24, '#8D9096', 'right');
+
+  disp(b.nomMois.toUpperCase(), M, 208, 88, '#F4F3EE');
+  mono((pseudo || 'Anonyme').toUpperCase(), M, 252, 26, '#4CC9F0');
+
+  const cells = [
+    [String(b.nbSeances), 'SEANCES'],
+    [b.volume.toLocaleString('fr-FR'), 'KG SOULEVES'],
+    [String(b.series), 'SERIES'],
+    [String(b.records.length), 'RECORDS BATTUS']
+  ];
+  const cw = (W - M*2 - 22) / 2, ch = 146;
+  cells.forEach(function(c, i){
+    const x = M + (i % 2) * (cw + 22);
+    const y = 300 + Math.floor(i/2) * (ch + 22);
+    carte(x, y, cw, ch, 26);
+    disp(c[0], x + 34, y + 90, 70, '#FF4B2B');
+    mono(c[1], x + 34, y + 122, 20, '#8D9096');
+  });
+
+  let y = 300 + 2*(ch + 22) + 14;
+
+  if(b.records.length){
+    const n = Math.min(b.records.length, 4);
+    carte(M, y, W - M*2, 74 + n*62, 28);
+    mono('RECORDS DU MOIS', M + 34, y + 48, 21, '#8D9096');
+    let ry = y + 104;
+    b.records.slice(0, n).forEach(function(r){
+      inter(r.nom.length > 24 ? r.nom.slice(0,24) + '\u2026' : r.nom, M + 34, ry, 28, '#F4F3EE');
+      disp(r.poids + ' KG', W - M - 34, ry + 5, 42, '#4CC9F0', 'right');
+      ry += 62;
+    });
+    y += 74 + n*62 + 20;
+  }
+
+  // Bloc sensible, uniquement sur la carte complete
+  if(complet){
+    const cles = Object.keys(b.evolution);
+    if(cles.length){
+      const n = Math.min(cles.length, 4);
+      carte(M, y, W - M*2, 74 + n*58, 28);
+      mono('EVOLUTION', M + 34, y + 48, 21, '#8D9096');
+      let ry = y + 102;
+      cles.slice(0, n).forEach(function(k){
+        const e = b.evolution[k];
+        inter(e.label, M + 34, ry, 26, '#F4F3EE');
+        disp((e.diff > 0 ? '+' : '') + e.diff + ' ' + e.unit,
+             W - M - 34, ry + 5, 38, e.diff > 0 ? '#FF4B2B' : '#4CC9F0', 'right');
+        ry += 58;
+      });
+      y += 74 + n*58 + 20;
+    }
+  }
+
+  ctx.beginPath(); ctx.moveTo(M, H - 132); ctx.lineTo(W - M, H - 132);
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1.5; ctx.stroke();
+  mono(complet ? 'CARTE PERSONNELLE' : 'CARTE PARTAGEABLE', M, H - 88, 22, '#8D9096');
+  mono(APP_VERSION, W - M, H - 88, 19, 'rgba(141,144,150,0.6)', 'right');
+
+  cv.toBlob(function(blob){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'fonte-bilan-' + clefMois(b.mois) + (complet ? '' : '-partage') + '.jpg';
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    showToast(complet ? 'Carte complete telechargee' : 'Carte partageable telechargee');
+  }, 'image/jpeg', 0.92);
+}
+
+// ============================================================
+//  AFFICHAGE PARTIEL DES LISTES
+// ============================================================
+// Sans limite, un bloc s'allonge indefiniment et entraine ses
+// voisins avec lui. On plie a 5 elements, avec un bouton qui
+// annonce combien il en reste.
+//
+// Choix assume : on deplie SUR PLACE plutot que d'ouvrir une
+// modale ou d'ajouter un defilement interne. Un cadre qui
+// defile a l'interieur d'une page qui defile deja est un piege
+// classique sur mobile, ou le doigt ne sait plus quoi bouger.
+const LISTE_MAX = 5;
+const listesDepliees = {};
+
+function basculerListe(cle){
+  listesDepliees[cle] = !listesDepliees[cle];
+  const rendus = {
+    exercices: renderExoList,
+    modeles:   renderModeles,
+    seances:   renderSeanceRecap,
+    amis:      renderAmis,
+    historique: renderSuiviHistory
+  };
+  if(rendus[cle]) rendus[cle]();
+}
+
+// Renvoie la portion a afficher et le bouton qui va avec
+function partie(cle, items){
+  const deplie = !!listesDepliees[cle];
+  const visibles = deplie ? items : items.slice(0, LISTE_MAX);
+  let bouton = '';
+  if(items.length > LISTE_MAX){
+    bouton = '<button class="voir-plus" onclick="basculerListe(\'' + cle + '\')">' +
+      (deplie ? 'Voir moins' : 'Voir les ' + (items.length - LISTE_MAX) + ' autres') +
+      '</button>';
+  }
+  return {visibles: visibles, bouton: bouton};
 }
 
 // ============================================================
@@ -2007,7 +2434,8 @@ function renderSeanceRecap(){
   if(!el || !btn) return;
 
   if(weekSeances.length){
-    el.innerHTML = '<div class="recap">' + weekSeances.map(function(se){
+    const p = partie('seances', weekSeances);
+    el.innerHTML = '<div class="recap">' + p.visibles.map(function(se){
       const vol = se.exercices.reduce((t,b)=>t+b.sets.reduce((x,s)=>x+s.poids*s.reps,0),0);
       const names = se.exercices.map(function(b){
         const e = exercices.find(x=>x.id===b.exoId); return e?e.name:'-';
@@ -2024,7 +2452,7 @@ function renderSeanceRecap(){
           '<span class="recap-value">' + vol + '<span class="unit">kg vol.</span></span>' +
           '<button class="del-btn" onclick="deleteSeance(\'' + se.id + '\')" title="Supprimer cette seance">&#10005;</button>' +
         '</span></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div>' + p.bouton;
   } else {
     el.innerHTML = '<p class="recap-empty">Aucune seance enregistree cette semaine.</p>';
   }
@@ -2669,7 +3097,8 @@ function renderAmis(){
   // Liste d'amis
   const listEl = document.getElementById('amis-list');
   if((amisData.amis||[]).length){
-    listEl.innerHTML = amisData.amis.map(function(p){
+    const part = partie('amis', amisData.amis);
+    listEl.innerHTML = part.visibles.map(function(p){
       const streak = p.streak || 0;
       const pres = presenceLisible(p.presence_sec);
       const meta = (pres ? pastillePresence(p.presence_sec) + ' &middot; ' : '') +
@@ -2682,7 +3111,7 @@ function renderAmis(){
         '<button onclick="openProfile(\'' + p.id + '\')">Voir</button>' +
         '<button onclick="retirerAmi(\'' + p.id + '\')">Retirer</button>',
         meta);
-    }).join('');
+    }).join('') + part.bouton;
   } else {
     listEl.innerHTML = '<p class="recap-empty">Aucun ami pour l\'instant. Cherche quelqu\'un par son pseudo ci-dessus, ou partage ta carte de profil.</p>';
   }
@@ -4170,7 +4599,8 @@ function renderExoList(){
     el.innerHTML = '<p class="empty">Aucun exercice pour l\'instant.</p>';
     return;
   }
-  el.innerHTML = exercices.map(function(e){
+  const p = partie('exercices', exercices);
+  el.innerHTML = p.visibles.map(function(e){
     return '<div class="exo-row">' +
       '<span class="exo-name">' + String(e.name).replace(/</g,'&lt;') +
         '<span class="exo-grp">' + icoGroupe(e.groupe) + ' ' + nomGroupe(e.groupe) + '</span></span>' +
@@ -4181,7 +4611,7 @@ function renderExoList(){
         '<button class="small" onclick="editExoGoal(\'' + e.id + '\')">Objectif</button>' +
         '<button class="del-btn" onclick="deleteExercice(\'' + e.id + '\')">\u2715</button>' +
       '</div></div>';
-  }).join('');
+  }).join('') + p.bouton;
 }
 
 // Attribuer ou changer le groupe d'un exercice deja cree
@@ -4287,7 +4717,8 @@ function renderSuiviHistory(){
     return;
   }
   const weeks = sortByWeek(suivi).slice().reverse();
-  const rows = weeks.map(function(s){
+  const p = partie('historique', weeks);
+  const rows = p.visibles.map(function(s){
     const cells = SUIVI_FIELDS.map(function(f){
       return '<td>' + (s[f.key] == null ? '&mdash;' : s[f.key]) + '</td>';
     }).join('');
@@ -4299,7 +4730,7 @@ function renderSuiviHistory(){
   }).join('');
   const entetes = SUIVI_FIELDS.map(function(f){ return '<th>' + f.label + '</th>'; }).join('');
   el.innerHTML = '<div style="overflow-x:auto;"><table><thead><tr><th>Semaine</th>' +
-    entetes + '<th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    entetes + '<th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + p.bouton;
 }
 
 function renderSuiviChart(){
