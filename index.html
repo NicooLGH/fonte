@@ -51,7 +51,6 @@
     <nav class="tabs" id="nav-tabs">
       <span class="nav-slider" id="nav-slider"></span>
       <button data-view="accueil" class="active">Accueil <span class="tab-badge" id="tab-badge-accueil" style="display:none;"></span></button>
-      <button data-view="mensurations">Mensurations</button>
       <button data-view="performances">Performances</button>
       <button data-view="suivi">Suivi hebdo</button>
       <button data-view="analyse">Analyse</button>
@@ -67,7 +66,6 @@
 
   <div class="burger-menu" id="burger-menu">
     <button class="burger-item" data-burger-view="accueil">Accueil <span class="tab-badge" id="burger-badge-accueil" style="display:none;"></span></button>
-    <button class="burger-item" data-burger-view="mensurations">Mensurations</button>
     <button class="burger-item" data-burger-view="performances">Performances</button>
     <button class="burger-item" data-burger-view="suivi">Suivi hebdo</button>
     <button class="burger-item" data-burger-view="analyse">Analyse</button>
@@ -136,71 +134,6 @@
   </div>
 
   <!-- MENSURATIONS -->
-  <div class="view" id="view-mensurations">
-    <div class="card-duo">
-      <div class="card">
-        <h2>Objectifs <button class="help-btn" onclick="toggleHelp('help-obj')" aria-label="Aide">i</button></h2>
-        <div class="card-body">
-          <p class="block-intro">Fixe les mensurations que tu vises : tour de bras, de pectoraux, de taille… et ton poids cible.</p>
-          <div class="help-box" id="help-obj">
-            <strong>À quoi ça sert ?</strong><br>
-            Une fois tes objectifs définis, une ligne repère apparaît sur tes graphiques d'évolution et le carnet t'indique
-            ce qu'il te reste à parcourir. C'est entièrement facultatif : tu peux n'en renseigner qu'un seul, ou aucun.
-          </div>
-          <div id="obj-mensu-recap"></div>
-        </div>
-        <button class="primary" id="obj-mensu-btn" onclick="startWizard('objectifs')">Définir mes objectifs</button>
-      </div>
-
-      <div class="card">
-        <h2>Mesure de la semaine <button class="help-btn" onclick="toggleHelp('help-mensu')" aria-label="Aide">i</button></h2>
-        <div class="card-body">
-          <p class="block-intro">Relève ton tour de pectoraux, bras, épaules, jambes et taille — une fois par semaine suffit.<br>
-            📷 Tu peux joindre une photo à la dernière étape pour comparer visuellement deux semaines.</p>
-          <div class="help-box" id="help-mensu">
-            <strong>Comment s'en servir ?</strong><br>
-            Mesure-toi toujours dans les mêmes conditions (même moment de la journée, à froid) pour que la comparaison ait du sens.
-            Une seule mesure par semaine est conservée : si tu recommences, elle est mise à jour, pas dupliquée.
-            Tu peux joindre une photo pour comparer visuellement deux semaines plus tard.
-          </div>
-          <div class="info-line" id="mensu-week-info"></div>
-          <div id="mensu-recap"></div>
-        </div>
-        <button class="primary" id="mensu-btn" onclick="startWizard('mensurations')">Ajouter mes mesures</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Comparer deux semaines <span class="tag">photos</span></h2>
-      <div class="chart-controls">
-        <select id="compare-week-a"></select>
-        <select id="compare-week-b"></select>
-        <button class="ghost" onclick="renderComparison()">Comparer</button>
-      </div>
-      <div id="compare-holder"><p class="empty">Ajoute des photos sur au moins deux semaines pour activer la comparaison.</p></div>
-    </div>
-
-    <div class="card">
-      <h2>Évolution</h2>
-      <div class="chart-controls">
-        <select id="mensu-chart-select" onchange="renderMensuChart()">
-          <option value="pec">Pectoraux</option>
-          <option value="bras">Bras</option>
-          <option value="epaule">Épaules</option>
-          <option value="jambe">Jambes</option>
-          <option value="taille">Taille</option>
-        </select>
-      </div>
-      <div id="mensu-chart-holder"></div>
-      <div id="mensu-goal"></div>
-    </div>
-
-    <div class="card">
-      <h2>Historique</h2>
-      <div id="mensu-history"></div>
-    </div>
-  </div>
-
   <!-- PERFORMANCES -->
   <div class="view" id="view-performances">
     <div class="card-duo">
@@ -268,52 +201,84 @@
 
   <!-- SUIVI HEBDO -->
   <div class="view" id="view-suivi">
-    <div class="card">
-      <h2>Rappel hebdomadaire <span class="tag">optionnel</span></h2>
-      <p style="font-family:var(--font-body);font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">Choisis un jour : si tu n'as pas encore rempli ton suivi de la semaine ce jour-là, une fenêtre te le rappellera à l'ouverture du carnet.</p>
-      <div class="form-grid">
-        <div class="field"><label>Jour du rappel</label>
-          <select id="reminder-day-select">
-            <option value="">Aucun</option>
-            <option value="lundi">Lundi</option>
-            <option value="mardi">Mardi</option>
-            <option value="mercredi">Mercredi</option>
-            <option value="jeudi">Jeudi</option>
-            <option value="vendredi">Vendredi</option>
-            <option value="samedi">Samedi</option>
-            <option value="dimanche">Dimanche</option>
-          </select>
+    <div class="card-duo">
+      <div class="card">
+        <h2>Objectifs <button class="help-btn" onclick="toggleHelp('help-obj')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Fixe ce que tu vises : poids cible et tours de bras, pectoraux, épaules, jambes, taille.</p>
+          <div class="help-box" id="help-obj">
+            <strong>À quoi ça sert ?</strong><br>
+            Une ligne repère apparaît sur tes graphiques d'évolution et le carnet t'indique ce qu'il te reste à parcourir.
+            C'est facultatif : tu peux n'en renseigner qu'un seul, ou aucun.
+          </div>
+          <div id="obj-recap"></div>
         </div>
+        <button class="primary" id="obj-btn" onclick="startWizard('objectifs')">Définir mes objectifs</button>
       </div>
-      <button class="ghost" onclick="saveReminderSettings()">Enregistrer</button>
+
+      <div class="card">
+        <h2>Relevé de la semaine <button class="help-btn" onclick="toggleHelp('help-suivi')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Poids, calories et mensurations — un seul relevé par semaine, tous les champs facultatifs.<br>
+            📷 Tu peux joindre une photo pour comparer visuellement deux semaines.</p>
+          <div class="help-box" id="help-suivi">
+            <strong>Pourquoi une fois par semaine ?</strong><br>
+            Le poids fluctue beaucoup d'un jour à l'autre (eau, digestion, sommeil) : un relevé hebdomadaire donne une
+            tendance bien plus fiable qu'un suivi quotidien. Mesure-toi toujours dans les mêmes conditions —
+            même moment de la journée, à froid — pour que la comparaison ait du sens.<br><br>
+            <strong>Bonus du dimanche :</strong> faire ton bilan le dimanche rapporte 5 XP supplémentaires.
+            Rien ne t'y oblige, tu peux saisir n'importe quel jour sans rien perdre d'autre.
+          </div>
+          <div class="info-line" id="suivi-week-info"></div>
+          <div id="suivi-recap"></div>
+        </div>
+        <button class="primary" id="suivi-btn" onclick="startWizard('suivi')">Ajouter mon relevé</button>
+      </div>
     </div>
 
     <div class="card">
-      <h2>Suivi de la semaine <button class="help-btn" onclick="toggleHelp('help-suivi')" aria-label="Aide">i</button></h2>
-      <p class="block-intro">Ton poids, tes calories moyennes par jour et ton tour de taille — un relevé hebdomadaire, pas quotidien.</p>
-      <div class="help-box" id="help-suivi">
-        <strong>Pourquoi une fois par semaine ?</strong><br>
-        Le poids fluctue beaucoup d'un jour à l'autre (eau, digestion, sommeil) : un relevé hebdomadaire donne une
-        tendance bien plus fiable qu'un suivi quotidien.<br><br>
-        <strong>Bonus du dimanche :</strong> faire ton bilan le dimanche rapporte 5 XP supplémentaires.
-        Rien ne t'y oblige — tu peux saisir n'importe quel jour de la semaine sans rien perdre d'autre.
+      <h2>Comparer deux semaines <span class="tag">photos</span></h2>
+      <div class="chart-controls">
+        <select id="compare-week-a"></select>
+        <select id="compare-week-b"></select>
+        <button class="ghost" onclick="renderComparison()">Comparer</button>
       </div>
-      <div class="info-line" id="suivi-week-info"></div>
-      <div id="suivi-recap"></div>
-      <button class="primary" id="suivi-btn" onclick="startWizard('suivi')">Ajouter mon suivi</button>
+      <div id="compare-holder"><p class="empty">Ajoute des photos sur au moins deux semaines pour activer la comparaison.</p></div>
     </div>
 
     <div class="card">
       <h2>Évolution</h2>
       <div class="chart-controls">
-        <select id="suivi-chart-select" onchange="renderSuiviChart()">
+        <select id="suivi-field-select">
           <option value="poids">Poids</option>
-          <option value="taille">Tour de taille</option>
           <option value="calories">Calories</option>
+          <option value="pec">Pectoraux</option>
+          <option value="bras">Bras</option>
+          <option value="epaule">Épaules</option>
+          <option value="jambe">Jambes</option>
+          <option value="taille">Tour de taille</option>
         </select>
       </div>
-      <div id="suivi-chart-holder"></div>
-      <div id="suivi-goal"></div>
+      <div id="suivi-chart"></div>
+    </div>
+
+    <div class="card">
+      <h2>Rappel hebdomadaire <span class="tag">optionnel</span></h2>
+      <p class="block-intro">Choisis un jour : si tu n'as pas encore rempli ton relevé ce jour-là, une fenêtre te le rappellera à l'ouverture du carnet.</p>
+      <div class="field">
+        <label>Jour du rappel</label>
+        <select id="reminder-day-select">
+          <option value="">Aucun</option>
+          <option value="lundi">Lundi</option>
+          <option value="mardi">Mardi</option>
+          <option value="mercredi">Mercredi</option>
+          <option value="jeudi">Jeudi</option>
+          <option value="vendredi">Vendredi</option>
+          <option value="samedi">Samedi</option>
+          <option value="dimanche">Dimanche</option>
+        </select>
+      </div>
+      <button class="ghost" onclick="saveReminderSettings()">Enregistrer</button>
     </div>
 
     <div class="card">
@@ -322,7 +287,6 @@
     </div>
   </div>
 
-  <!-- RECORDS -->
   <div class="view" id="view-analyse">
     <div class="card">
       <h2>Assiduité</h2>

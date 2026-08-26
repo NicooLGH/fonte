@@ -175,7 +175,6 @@ async function storageSet(key, value){
   }
 }
 
-let mensurations = [];
 let exercices = [];
 let performances = []; // séances : {id, weekKey, date, note, exercices:[{exoId, sets:[{poids,reps}]}]}
 let suivi = [];
@@ -262,7 +261,6 @@ function getExoEntries(exoId){
     .sort((a,b)=>a.weekKey.localeCompare(b.weekKey));
 }
 
-function getMensuNote(id){ const m = mensurations.find(x=>x.id===id); return m && m.note ? m.note : ''; }
 function getSuiviNote(id){ const s = suivi.find(x=>x.id===id); return s && s.note ? s.note : ''; }
 function getSeanceNote(id){ const se = performances.find(x=>x.id===id); return se && se.note ? se.note : ''; }
 function showNote(text){ afficherInfo('Note', text); }
@@ -302,7 +300,7 @@ async function showPhoto(weekKey){
 function closePhotoModal(){ document.getElementById('photo-modal').style.display='none'; }
 
 function renderCompareSelects(){
-  const weeksWithPhoto = sortByWeek(mensurations.filter(m=>m.hasPhoto));
+  const weeksWithPhoto = sortByWeek(suivi.filter(s=>s.hasPhoto));
   const selA = document.getElementById('compare-week-a');
   const selB = document.getElementById('compare-week-b');
   if(weeksWithPhoto.length<2){
@@ -344,10 +342,9 @@ function updateCompareSlider(val){
 async function loadAll(){
   try{
     const uid = currentUser.id;
-    const [rProfile, rExos, rMensu, rSeances, rSeries, rSuivi, rObj, rRemind] = await Promise.all([
+    const [rProfile, rExos, rSeances, rSeries, rSuivi, rObj, rRemind] = await Promise.all([
       db.from('profiles').select('pseudo, avatar, onboarded, partage_seances').eq('id', uid).maybeSingle(),
       db.from('exercices').select('*').order('created_at'),
-      db.from('mensurations').select('*'),
       db.from('seances').select('*'),
       db.from('series').select('*').order('position'),
       db.from('suivi').select('*'),
@@ -355,7 +352,7 @@ async function loadAll(){
       db.from('reminder_settings').select('*').eq('user_id', uid).maybeSingle()
     ]);
 
-    const firstError = [rProfile,rExos,rMensu,rSeances,rSeries,rSuivi,rObj,rRemind]
+    const firstError = [rProfile,rExos,rSeances,rSeries,rSuivi,rObj,rRemind]
       .map(r=>r.error).find(Boolean);
     if(firstError) throw firstError;
 
@@ -367,13 +364,6 @@ async function loadAll(){
     exercices = (rExos.data||[]).map(e=>({
       id: e.id, name: e.name,
       objectif: e.objectif!=null ? Number(e.objectif) : null
-    }));
-
-    mensurations = (rMensu.data||[]).map(m=>({
-      id: m.id, date: m.date, weekKey: m.week_key,
-      pec: numOrNull(m.pec), bras: numOrNull(m.bras), epaule: numOrNull(m.epaule),
-      jambe: numOrNull(m.jambe), taille: numOrNull(m.taille),
-      note: m.note, hasPhoto: !!m.photo_path
     }));
 
     // On recompose la structure imbriquée que le reste du code attend :
@@ -398,6 +388,9 @@ async function loadAll(){
     suivi = (rSuivi.data||[]).map(s=>({
       id: s.id, date: s.date, weekKey: s.week_key,
       calories: numOrNull(s.calories), poids: numOrNull(s.poids), taille: numOrNull(s.taille),
+      pec: numOrNull(s.pec), bras: numOrNull(s.bras),
+      epaule: numOrNull(s.epaule), jambe: numOrNull(s.jambe),
+      hasPhoto: !!s.photo_path,
       bonusDimanche: !!s.bonus_dimanche, note: s.note
     }));
 
@@ -443,13 +436,10 @@ async function loadAll(){
     document.getElementById('reminder-day-select').value = reminderSettings.day || '';
   });
 
-  safe('récap objectifs',    renderObjMensuRecap);
-  safe('récap mensurations', renderMensuRecap);
+  safe('récap objectifs',    renderObjRecap);
   safe('récap suivi',        renderSuiviRecap);
   safe('récap séance',       renderSeanceRecap);
   safe('accueil',            renderHome);
-  safe('historique mensu',   renderMensuHistory);
-  safe('graphique mensu',    renderMensuChart);
   safe('liste exercices',    renderExoList);
   safe('sélecteur perf',     renderPerfChartSelect);
   safe('historique perf',    renderPerfHistory);
@@ -458,6 +448,8 @@ async function loadAll(){
   safe('graphique suivi',    renderSuiviChart);
   safe('comparaison',        renderCompareSelects);
 
+  const selSuivi = document.getElementById('suivi-field-select');
+  if(selSuivi) selSuivi.addEventListener('change', renderSuiviChart);
   safe('jalon', chargerJalonChoisi);
   safe('empreintes', initEmpreintes);
   safe('calcul XP', ()=>{ lastXPBreakdown = computeXPBreakdown(); });
@@ -489,7 +481,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.0.1';
+const APP_VERSION = 'v3.1.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -506,6 +498,12 @@ function renderVersionAndWeek(){
 // à l'étranger doit voir son bonus tomber son dimanche à lui.
 function estDimanche(){ return new Date().getDay() === 0; }
 const BONUS_DIMANCHE = 5;
+// Mensurations et suivi ont fusionne : un seul releve rapporte
+// desormais ce que les deux valaient ensemble (8 + 8), et le
+// combo hebdo ne demande plus que deux categories au lieu de
+// trois, d'ou un montant legerement reduit.
+const XP_SUIVI = 15;
+const XP_COMBO = 25;
 const JOURS_SAISIE = 3;   // aujourd'hui, hier, avant-hier
 
 // La colonne `day` est un entier en base, alors que le menu manipule
@@ -711,32 +709,29 @@ async function saveSettingsPseudo(){
 // ============================================================
 //  ASSISTANT PAS-À-PAS
 // ============================================================
-// Un moteur unique alimente les quatre parcours (mensurations,
+// Un moteur unique alimente les parcours (releve hebdo,
 // objectifs, suivi, séance). Chaque parcours décrit ses étapes ;
 // le moteur gère navigation, progression, touche Entrée et récap.
 
-const MENSU_FIELDS = [
-  {key:'pec',    label:'Pectoraux', unit:'cm'},
-  {key:'bras',   label:'Bras',      unit:'cm'},
-  {key:'epaule', label:'Épaules',   unit:'cm'},
-  {key:'jambe',  label:'Jambes',    unit:'cm'},
-  {key:'taille', label:'Tour de taille', unit:'cm'},
-];
+// Un seul releve hebdomadaire : le tour de taille etait saisi
+// dans deux pages differentes, sans qu'aucune ne previenne en
+// cas de valeurs contradictoires.
 const SUIVI_FIELDS = [
-  {key:'poids',    label:'Poids',              unit:'kg',  step:'0.1'},
-  {key:'calories', label:'Calories moy./jour', unit:'kcal',step:'1'},
-  {key:'taille',   label:'Tour de taille',     unit:'cm',  step:'0.1'},
+  {key:'poids',    label:'Poids',              unit:'kg',   step:'0.1'},
+  {key:'calories', label:'Calories moy./jour', unit:'kcal', step:'1'},
+  {key:'pec',      label:'Pectoraux',          unit:'cm',   step:'0.5'},
+  {key:'bras',     label:'Bras',               unit:'cm',   step:'0.5'},
+  {key:'epaule',   label:'Épaules',            unit:'cm',   step:'0.5'},
+  {key:'jambe',    label:'Jambes',             unit:'cm',   step:'0.5'},
+  {key:'taille',   label:'Tour de taille',     unit:'cm',   step:'0.5'},
 ];
-const OBJ_FIELDS = [
-  ...MENSU_FIELDS,
-  {key:'poidsCible', label:'Poids cible', unit:'kg'},
-];
+// Les objectifs portent sur les memes champs, hors calories
+const OBJ_FIELDS = SUIVI_FIELDS.filter(function(f){ return f.key !== 'calories'; });
 
 let wiz = null; // {type, steps, index, data, editing}
 
 function startWizard(type){
-  if(type==='mensurations')  wiz = buildMensuWizard();
-  else if(type==='objectifs') wiz = buildObjWizard();
+  if(type==='objectifs') wiz = buildObjWizard();
   else if(type==='suivi')     wiz = buildSuiviWizard();
   else if(type==='exercice')  wiz = buildExoWizard();
   else if(type==='seance')    wiz = buildSeanceWizard();
@@ -843,88 +838,31 @@ function recapStep(title, fields, getData, extra){
   };
 }
 
-// ---- Parcours : mensurations ----
-function buildMensuWizard(){
-  const wk = isoWeekKey(new Date());
-  const existing = mensurations.find(m=>m.weekKey===wk);
-  const sorted = sortByWeek(mensurations.filter(m=>m.weekKey!==wk));
-  const prevEntry = sorted.length ? sorted[sorted.length-1] : null;
-  const data = {};
-  MENSU_FIELDS.forEach(f=> data[f.key] = existing ? existing[f.key] : null);
-
-  const steps = MENSU_FIELDS.map(f=>
-    numStep(f, ()=>data[f.key], v=>data[f.key]=v, ()=>prevEntry ? prevEntry[f.key] : null)
-  );
-  steps.push(recapStep('Récapitulatif', MENSU_FIELDS, ()=>data, ()=>`
-    <label class="wiz-photo" for="wiz-photo" style="display:block;cursor:pointer;text-align:center;">
-      📷 ${existing && existing.hasPhoto ? 'Remplacer la photo de cette semaine' : 'Ajouter une photo de progression'}
-    </label>
-    <input type="file" accept="image/*" id="wiz-photo" style="display:none;"
-           onchange="document.querySelector('label[for=wiz-photo]').textContent = '📷 ' + (this.files[0]?.name || 'Photo sélectionnée')">
-    <div class="wiz-hint" style="margin-top:8px;">
-      Facultatif. Prise dans les mêmes conditions chaque semaine, elle rend la progression bien plus lisible
-      que les chiffres seuls. Elle reste privée : personne d'autre ne peut la voir.
-    </div>
-  `));
-
-  return {
-    type:'mensurations', steps, index:0, data,
-    saveLabel: existing ? 'Mettre à jour' : 'Enregistrer',
-    async finish(){
-      const photoInput = document.getElementById('wiz-photo');
-      let photoDataURL = null;
-      if(photoInput && photoInput.files && photoInput.files[0]){
-        try{ photoDataURL = await resizeImageToDataURL(photoInput.files[0], 900, 0.72); }
-        catch(e){ showToast('Photo illisible, ignorée'); }
-      }
-      let entry = mensurations.find(m=>m.weekKey===wk);
-      if(entry){
-        MENSU_FIELDS.forEach(f=> entry[f.key] = data[f.key]);
-        entry.date = todayStr();
-      } else {
-        entry = {id: crypto.randomUUID(), date: todayStr(), weekKey: wk,
-                 ...data, note:null, hasPhoto:false};
-        mensurations.push(entry);
-      }
-      if(photoDataURL){
-        try{ await storageSet('photo-mensu:'+wk, photoDataURL); entry.hasPhoto = true; }
-        catch(e){ showToast('Photo non enregistrée'); }
-      }
-      await save('mensurations', mensurations);
-      renderMensuRecap(); renderMensuHistory(); renderMensuChart();
-      renderCompareSelects(); renderHome();
-      showToast(existing ? 'Mesures mises à jour ✓' : 'Mesures enregistrées ✓');
-    }
-  };
-}
-
 // ---- Parcours : objectifs ----
 function buildObjWizard(){
   const data = {};
-  MENSU_FIELDS.forEach(f=> data[f.key] = objectifs.mensu[f.key] ?? null);
-  data.poidsCible = objectifs.suivi.poids ?? null;
+  OBJ_FIELDS.forEach(function(f){ data[f.key] = objectifs.mensu[f.key] ?? null; });
 
-  const steps = OBJ_FIELDS.map(f=>
-    numStep(f, ()=>data[f.key], v=>data[f.key]=v, null)
-  );
-  steps.push(recapStep('Récapitulatif', OBJ_FIELDS, ()=>data));
+  const steps = OBJ_FIELDS.map(function(f){
+    return numStep(f, function(){ return data[f.key]; }, function(v){ data[f.key] = v; }, null);
+  });
+  steps.push(recapStep('Récapitulatif', OBJ_FIELDS, function(){ return data; }));
 
   return {
-    type:'objectifs', steps, index:0, data, saveLabel:'Enregistrer',
+    type:'objectifs', steps: steps, index:0, data: data, saveLabel:'Enregistrer',
     async finish(){
-      MENSU_FIELDS.forEach(f=>{
-        if(data[f.key]==null) delete objectifs.mensu[f.key];
+      OBJ_FIELDS.forEach(function(f){
+        if(data[f.key] == null) delete objectifs.mensu[f.key];
         else objectifs.mensu[f.key] = data[f.key];
       });
-      // Le tour de taille sert aussi d'objectif côté suivi
-      if(data.taille==null) delete objectifs.suivi.taille;
-      else objectifs.suivi.taille = data.taille;
-      if(data.poidsCible==null) delete objectifs.suivi.poids;
-      else objectifs.suivi.poids = data.poidsCible;
+      // `objectifs.suivi` reste alimente pour la ligne repere des graphiques
+      objectifs.suivi = {};
+      if(data.poids  != null) objectifs.suivi.poids  = data.poids;
+      if(data.taille != null) objectifs.suivi.taille = data.taille;
 
       await save('objectifs', objectifs);
-      renderObjMensuRecap(); renderMensuChart(); renderSuiviChart(); renderHome();
-      showToast('Objectifs enregistrés ✓');
+      renderObjRecap(); renderSuiviChart(); renderHome();
+      showToast('Objectifs enregistres');
     }
   };
 }
@@ -932,40 +870,64 @@ function buildObjWizard(){
 // ---- Parcours : suivi hebdo ----
 function buildSuiviWizard(){
   const wk = isoWeekKey(new Date());
-  const existing = suivi.find(s=>s.weekKey===wk);
-  const sorted = sortByWeek(suivi.filter(s=>s.weekKey!==wk));
-  const prevEntry = sorted.length ? sorted[sorted.length-1] : null;
-  const data = {};
-  SUIVI_FIELDS.forEach(f=> data[f.key] = existing ? existing[f.key] : null);
+  const existing = suivi.find(function(x){ return x.weekKey === wk; });
+  const passees = sortByWeek(suivi.filter(function(x){ return x.weekKey !== wk; }));
+  const prevEntry = passees.length ? passees[passees.length-1] : null;
 
-  const steps = SUIVI_FIELDS.map(f=>
-    numStep(f, ()=>data[f.key], v=>data[f.key]=v, ()=>prevEntry ? prevEntry[f.key] : null)
-  );
-  steps.push(recapStep('Récapitulatif', SUIVI_FIELDS, ()=>data, ()=>{
-    if(existing) return '';
-    return estDimanche()
-      ? `<div class="wiz-prev">📅 Bilan du dimanche : +${BONUS_DIMANCHE} XP en plus</div>`
-      : `<div class="wiz-hint">Astuce : faire ton bilan le dimanche rapporte ${BONUS_DIMANCHE} XP de plus.</div>`;
+  const data = {};
+  SUIVI_FIELDS.forEach(function(f){ data[f.key] = existing ? existing[f.key] : null; });
+
+  const steps = SUIVI_FIELDS.map(function(f){
+    return numStep(f,
+      function(){ return data[f.key]; },
+      function(v){ data[f.key] = v; },
+      function(){ return prevEntry ? prevEntry[f.key] : null; });
+  });
+
+  steps.push(recapStep('Récapitulatif', SUIVI_FIELDS, function(){ return data; }, function(){
+    const bonus = existing ? '' : (estDimanche()
+      ? '<div class="wiz-prev">&#128197; Bilan du dimanche : +' + BONUS_DIMANCHE + ' XP en plus</div>'
+      : '<div class="wiz-hint">Astuce : faire ton bilan le dimanche rapporte ' + BONUS_DIMANCHE + ' XP de plus.</div>');
+    return '<label class="wiz-photo" for="wiz-photo" style="display:block;cursor:pointer;text-align:center;">&#128247; ' +
+      (existing && existing.hasPhoto ? 'Remplacer la photo de cette semaine' : 'Ajouter une photo de progression') +
+      '</label>' +
+      '<input type="file" accept="image/*" id="wiz-photo" style="display:none;" ' +
+      'onchange="document.querySelector(\'label[for=wiz-photo]\').textContent = \'&#128247; \' + (this.files[0] ? this.files[0].name : \'Photo selectionnee\')">' +
+      '<div class="wiz-hint" style="margin-top:8px;">Facultatif. Prise dans les memes conditions chaque semaine, ' +
+      'elle rend la progression bien plus lisible que les chiffres seuls. Elle reste privee.</div>' + bonus;
   }));
 
   return {
-    type:'suivi', steps, index:0, data,
-    saveLabel: existing ? 'Mettre à jour' : 'Enregistrer',
+    type:'suivi', steps: steps, index:0, data: data,
+    saveLabel: existing ? 'Mettre a jour' : 'Enregistrer',
     async finish(){
-      let entry = suivi.find(s=>s.weekKey===wk);
-      if(entry){
-        // Modification : on ne retouche ni la date ni le bonus déjà acquis,
-        // sinon il suffirait de rouvrir le formulaire un dimanche pour l'obtenir.
-        SUIVI_FIELDS.forEach(f=> entry[f.key] = data[f.key]);
-      } else {
-        suivi.push({id: crypto.randomUUID(), date: todayStr(), weekKey: wk,
-                    poids:data.poids, calories:data.calories, taille:data.taille,
-                    bonusDimanche: estDimanche(), note:null});
+      const input = document.getElementById('wiz-photo');
+      let photoDataURL = null;
+      if(input && input.files && input.files[0]){
+        try{ photoDataURL = await resizeImageToDataURL(input.files[0], 900, 0.72); }
+        catch(e){ showToast('Photo illisible, ignoree'); }
       }
+
+      let entry = suivi.find(function(x){ return x.weekKey === wk; });
+      if(entry){
+        // Modification : ni la date ni le bonus deja acquis ne bougent
+        SUIVI_FIELDS.forEach(function(f){ entry[f.key] = data[f.key]; });
+      } else {
+        entry = {id: crypto.randomUUID(), date: todayStr(), weekKey: wk,
+                 bonusDimanche: estDimanche(), hasPhoto: false, note: null};
+        SUIVI_FIELDS.forEach(function(f){ entry[f.key] = data[f.key]; });
+        suivi.push(entry);
+      }
+
+      if(photoDataURL){
+        try{ await storageSet('photo-mensu:' + wk, photoDataURL); entry.hasPhoto = true; }
+        catch(e){ showToast('Photo non enregistree'); }
+      }
+
       await save('suivi', suivi);
       renderSuiviRecap(); renderSuiviHistory(); renderSuiviChart();
-      renderCorrelations(); renderHome();
-      showToast(existing ? 'Suivi mis à jour ✓' : 'Suivi enregistré ✓');
+      renderCompareSelects(); renderCorrelations(); renderHome();
+      showToast(existing ? 'Releve mis a jour' : 'Releve enregistre');
     }
   };
 }
@@ -1243,54 +1205,39 @@ function recapHTML(fields, obj){
   }).join('') + `</div>`;
 }
 
-function renderMensuRecap(){
-  const wk = isoWeekKey(new Date());
-  const entry = mensurations.find(m=>m.weekKey===wk);
-  const el = document.getElementById('mensu-recap');
-  const btn = document.getElementById('mensu-btn');
+function renderObjRecap(){
+  const el = document.getElementById('obj-recap');
+  const btn = document.getElementById('obj-btn');
   if(!el || !btn) return;
-  if(entry){
-    el.innerHTML = recapHTML(MENSU_FIELDS, entry) +
-      (entry.hasPhoto
-        ? `<button class="small" style="margin-top:10px;" onclick="showPhoto('${entry.weekKey}')">📷 Voir la photo de la semaine</button>`
-        : `<div class="wiz-hint" style="margin-top:10px;">Aucune photo cette semaine — tu peux en ajouter une en modifiant tes mesures.</div>`);
-    btn.textContent = 'Modifier mes mesures';
-  } else {
-    el.innerHTML = `<p class="recap-empty">Aucune mesure enregistrée pour cette semaine.</p>`;
-    btn.textContent = 'Ajouter mes mesures';
-  }
-}
-
-function renderObjMensuRecap(){
-  const el = document.getElementById('obj-mensu-recap');
-  const btn = document.getElementById('obj-mensu-btn');
-  if(!el || !btn) return;
-  const data = {...objectifs.mensu, poidsCible: objectifs.suivi.poids ?? null};
-  const any = OBJ_FIELDS.some(f=>data[f.key]!=null);
+  const data = objectifs.mensu || {};
+  const any = OBJ_FIELDS.some(function(f){ return data[f.key] != null; });
   if(any){
     el.innerHTML = recapHTML(OBJ_FIELDS, data);
     btn.textContent = 'Modifier mes objectifs';
   } else {
-    el.innerHTML = `<p class="recap-empty">Aucun objectif défini. C'est facultatif, mais ça affiche ta progression sur les graphiques.</p>`;
-    btn.textContent = 'Définir mes objectifs';
+    el.innerHTML = '<p class="recap-empty">Aucun objectif defini. C\'est facultatif, mais ca affiche ta progression sur les graphiques.</p>';
+    btn.textContent = 'Definir mes objectifs';
   }
 }
 
 function renderSuiviRecap(){
   const wk = isoWeekKey(new Date());
-  const entry = suivi.find(s=>s.weekKey===wk);
+  const entry = suivi.find(function(x){ return x.weekKey === wk; });
   const el = document.getElementById('suivi-recap');
   const btn = document.getElementById('suivi-btn');
   const info = document.getElementById('suivi-week-info');
-  if(info) info.textContent = `Semaine en cours : ${weekLabel(wk)}`;
+  if(info) info.textContent = 'Semaine en cours : ' + weekLabel(wk);
   if(!el || !btn) return;
   if(entry){
     el.innerHTML = recapHTML(SUIVI_FIELDS, entry) +
-      (entry.bonusDimanche ? `<div class="wiz-prev">📅 Bilan fait le dimanche — bonus obtenu</div>` : '');
-    btn.textContent = 'Modifier mon suivi';
+      (entry.bonusDimanche ? '<div class="wiz-prev">&#128197; Bilan fait le dimanche &mdash; bonus obtenu</div>' : '') +
+      (entry.hasPhoto
+        ? '<button class="small" style="margin-top:10px;" onclick="showPhoto(\'' + entry.weekKey + '\')">&#128247; Voir la photo de la semaine</button>'
+        : '<div class="wiz-hint" style="margin-top:10px;">Aucune photo cette semaine &mdash; tu peux en ajouter une en modifiant ton releve.</div>');
+    btn.textContent = 'Modifier mon releve';
   } else {
-    el.innerHTML = `<p class="recap-empty">Aucun suivi enregistré pour cette semaine.</p>`;
-    btn.textContent = 'Ajouter mon suivi';
+    el.innerHTML = '<p class="recap-empty">Aucun releve enregistre pour cette semaine.</p>';
+    btn.textContent = 'Ajouter mon releve';
   }
 }
 
@@ -2208,7 +2155,6 @@ async function save(key, value){
     switch(key){
       case 'pseudo':            await syncPseudo(); break;
       case 'exercices':         await syncExercices(); break;
-      case 'mensurations':      await syncMensurations(); break;
       case 'performances':      await syncPerformances(); break;
       case 'suivi':             await syncSuivi(); break;
       case 'objectifs':         await syncObjectifs(); break;
@@ -2258,24 +2204,21 @@ function lignesExercices(){
     return {id:e.id, user_id:uid(), name:e.name, objectif:e.objectif == null ? null : e.objectif};
   });
 }
-function lignesMensurations(){
-  return mensurations.map(function(m){
-    return {id:m.id, user_id:uid(), date:m.date, week_key:m.weekKey,
-      pec:m.pec == null ? null : m.pec, bras:m.bras == null ? null : m.bras,
-      epaule:m.epaule == null ? null : m.epaule, jambe:m.jambe == null ? null : m.jambe,
-      taille:m.taille == null ? null : m.taille, note:m.note == null ? null : m.note,
-      photo_path: m.hasPhoto ? (uid() + '/' + m.weekKey + '.jpg') : null};
-  });
-}
 function lignesSuivi(){
   return suivi.map(function(s){
     return {id:s.id, user_id:uid(), date:s.date, week_key:s.weekKey,
       calories:s.calories == null ? null : s.calories,
       poids:s.poids == null ? null : s.poids,
       taille:s.taille == null ? null : s.taille,
+      pec:s.pec == null ? null : s.pec,
+      bras:s.bras == null ? null : s.bras,
+      epaule:s.epaule == null ? null : s.epaule,
+      jambe:s.jambe == null ? null : s.jambe,
+      photo_path: s.hasPhoto ? (uid() + '/' + s.weekKey + '.jpg') : null,
       bonus_dimanche: !!s.bonusDimanche, note:s.note == null ? null : s.note};
   });
 }
+
 function lignesSeances(){
   return performances.map(function(p){
     return {id:p.id, user_id:uid(), date:p.date, week_key:p.weekKey,
@@ -2292,7 +2235,6 @@ function initEmpreintes(){
     return o;
   };
   empreintes.exercices    = emp(lignesExercices());
-  empreintes.mensurations = emp(lignesMensurations());
   empreintes.suivi        = emp(lignesSuivi());
   empreintes.seances      = emp(lignesSeances());
   const ser = {};
@@ -2304,7 +2246,6 @@ async function syncPseudo(){
   check(await db.from('profiles').upsert({id: uid(), pseudo, updated_at: new Date().toISOString()}));
 }
 async function syncExercices(){    await appliquer('exercices', lignesExercices()); }
-async function syncMensurations(){ await appliquer('mensurations', lignesMensurations()); }
 async function syncSuivi(){        await appliquer('suivi', lignesSuivi()); }
 
 async function syncPerformances(){
@@ -2408,7 +2349,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     positionNavSlider();
     if(btn.dataset.view==='accueil') renderHome();
-    if(btn.dataset.view==='mensurations') renderCompareSelects();
+    if(btn.dataset.view==='suivi') renderCompareSelects();
     if(btn.dataset.view==='analyse'){ renderRecordsTab(); renderCorrelations(); }
     if(btn.dataset.view==='amis') chargerAmis();
   });
@@ -2465,7 +2406,7 @@ function goToSuiviFromReminder(){
 
 // ---- Statistiques du hero + streak ----
 function computeHomeStats(){
-  const weekSet = new Set([...mensurations.map(m=>m.weekKey), ...performances.map(p=>p.weekKey), ...suivi.map(s=>s.weekKey)]);
+  const weekSet = new Set([...performances.map(p=>p.weekKey), ...suivi.map(s=>s.weekKey)]);
   const curWk = isoWeekKey(new Date());
   const seanceNow = performances.find(p=>p.weekKey===curWk);
   let volume = 0;
@@ -2524,7 +2465,7 @@ function renderHero(){
 
 function renderReminder(){
   const container = document.getElementById('home-reminder');
-  const weekSet = new Set([...mensurations.map(m=>m.weekKey), ...performances.map(p=>p.weekKey), ...suivi.map(s=>s.weekKey)]);
+  const weekSet = new Set([...performances.map(p=>p.weekKey), ...suivi.map(s=>s.weekKey)]);
   if(weekSet.size===0){ container.innerHTML=''; return; }
   const curWk = isoWeekKey(new Date());
   if(weekSet.has(curWk)){ container.innerHTML=''; return; }
@@ -2539,7 +2480,7 @@ function computeMonthlySummary(){
   const inMonth = e => e.date && e.date.startsWith(monthPrefix);
   const lines = [];
 
-  const mensuMonth = sortByWeek(mensurations.filter(inMonth));
+  const mensuMonth = sortByWeek(suivi.filter(inMonth));
   ['pec','bras','epaule','jambe','taille'].forEach(f=>{
     const vals = mensuMonth.filter(m=>m[f]!=null);
     if(vals.length>=2){
@@ -2598,7 +2539,7 @@ function renderMilestoneTrack(containerId, value, thresholds){
 
 function getAvailableYears(){
   const years = new Set();
-  [...mensurations, ...performances, ...suivi].forEach(e=>years.add(parseInt(e.weekKey.split('-W')[0])));
+  [...performances, ...suivi].forEach(e=>years.add(parseInt(e.weekKey.split('-W')[0])));
   years.add(new Date().getFullYear());
   return [...years].sort((a,b)=>b-a);
 }
@@ -2611,7 +2552,6 @@ function isoWeeksInYear(year){
 
 function computeWeekActivityLevel(wk){
   let level = 0;
-  if(mensurations.some(m=>m.weekKey===wk)) level++;
   if(performances.some(p=>p.weekKey===wk)) level++;
   if(suivi.some(s=>s.weekKey===wk)) level++;
   return level;
@@ -2821,14 +2761,14 @@ function renderHome(){
   renderReminder();
   renderMonthlySummary();
   const el = document.getElementById('home-content');
-  if(mensurations.length===0 && performances.length===0 && suivi.length===0){
+  if(performances.length===0 && suivi.length===0){
     el.innerHTML = `<div class="hero-empty"><div class="big">Ton carnet est vide</div>Ajoute ta première mesure, séance ou semaine de suivi pour voir ton résumé ici.</div>`;
     return;
   }
   let cards = '';
 
-  if(mensurations.length>0){
-    const weeks = sortByWeek(mensurations);
+  if(suivi.length>0){
+    const weeks = sortByWeek(suivi);
     const last = weeks[weeks.length-1];
     let rows = ['pec','bras','epaule','jambe','taille'].filter(f=>last[f]!=null).map(f=>{
       const g = objectifs.mensu[f];
@@ -2877,7 +2817,7 @@ function renderHome(){
 
 // ---- Export JSON ----
 function openExportModal(){
-  const data = {pseudo, mensurations, exercices, performances, suivi, objectifs, exportDate: todayStr()};
+  const data = {pseudo, exercices, performances, suivi, objectifs, exportDate: todayStr()};
   document.getElementById('export-text').value = JSON.stringify(data, null, 2);
   document.getElementById('export-modal').style.display = 'flex';
 }
@@ -2940,39 +2880,6 @@ function mergeImportedData(data){
     }
   });
 
-  (data.mensurations||[]).forEach(imp=>{
-    if(!imp.weekKey) return;
-    let existing = mensurations.find(m=>m.weekKey===imp.weekKey);
-    if(existing){
-      ['pec','bras','epaule','jambe','taille'].forEach(f=>{ if(imp[f]!=null) existing[f]=imp[f]; });
-      if(imp.note) existing.note = imp.note;
-    } else {
-      mensurations.push({
-        id: crypto.randomUUID(), date: imp.date||todayStr(), weekKey: imp.weekKey,
-        pec: imp.pec??null, bras: imp.bras??null, epaule: imp.epaule??null, jambe: imp.jambe??null, taille: imp.taille??null,
-        bonusDimanche: !!imp.bonusDimanche, note: imp.note??null, hasPhoto:false,
-      });
-    }
-  });
-
-  (data.performances||[]).forEach(imp=>{
-    if(!imp.weekKey) return;
-    const remappedBlocks = (imp.exercices||[])
-      .map(b=>({exoId: idRemap[b.exoId]||b.exoId, sets:b.sets||[]}))
-      .filter(b=>exercices.some(e=>e.id===b.exoId) && b.sets.length>0);
-    if(remappedBlocks.length===0) return;
-    let existing = performances.find(p=>p.weekKey===imp.weekKey);
-    if(existing){
-      remappedBlocks.forEach(b=>{
-        const eb = existing.exercices.find(x=>x.exoId===b.exoId);
-        if(eb) eb.sets = eb.sets.concat(b.sets); else existing.exercices.push(b);
-      });
-      if(imp.note) existing.note = imp.note;
-    } else {
-      performances.push({id: crypto.randomUUID(), weekKey: imp.weekKey, date: imp.date||todayStr(), note: imp.note??null, exercices: remappedBlocks});
-    }
-  });
-
   (data.suivi||[]).forEach(imp=>{
     if(!imp.weekKey) return;
     suivi.push({
@@ -2993,7 +2900,6 @@ function mergeImportedData(data){
 }
 
 function replaceAllData(data){
-  mensurations = (data.mensurations||[]).map(m=>({...m, hasPhoto:false}));
   exercices = (data.exercices||[]).map(e=>({...e}));
   performances = migratePerformances(data.performances||[]);
   suivi = data.suivi||[];
@@ -3006,13 +2912,10 @@ function replaceAllData(data){
 function refreshAfterImport(){
   // Import : tout a ete remplace, l'empreinte n'a plus de sens.
   Object.keys(empreintes).forEach(function(k){ delete empreintes[k]; });
-  renderObjMensuRecap();
-  renderMensuRecap();
+  renderObjRecap();
   renderSuiviRecap();
   renderSeanceRecap();
   renderHome();
-  renderMensuHistory();
-  renderMensuChart();
   renderExoList();
   renderPerfChartSelect();
   renderPerfHistory();
@@ -3029,7 +2932,7 @@ async function runImport(mode){
   let data;
   try{ data = JSON.parse(raw); }
   catch(e){ showToast('JSON invalide — vérifie le fichier'); return; }
-  if(!data || typeof data!=='object' || (!data.mensurations && !data.performances && !data.suivi && !data.exercices)){
+  if(!data || typeof data!=='object' || (!data.performances && !data.suivi && !data.exercices)){
     showToast('Ce fichier ne ressemble pas à un export valide');
     return;
   }
@@ -3047,7 +2950,6 @@ async function runImport(mode){
   await save('exercices', exercices);
   await save('performances', performances);
   await Promise.all([
-    save('mensurations', mensurations),
     save('suivi', suivi),
     save('objectifs', objectifs),
   ]);
@@ -3069,7 +2971,7 @@ function weekKeyToMonday(weekKey){
 }
 
 function computeStreakXP(){
-  const allWeeks = [...new Set([...mensurations.map(m=>m.weekKey), ...performances.map(p=>p.weekKey), ...suivi.map(s=>s.weekKey)])];
+  const allWeeks = [...new Set([...performances.map(p=>p.weekKey), ...suivi.map(s=>s.weekKey)])];
   const sorted = allWeeks.sort((a,b)=>weekKeyToMonday(a)-weekKeyToMonday(b));
   let xp = 0;
   for(let i=1;i<sorted.length;i++){
@@ -3107,21 +3009,17 @@ function computeXPBreakdown(){
     }
   });
 
-  const weeksM = new Set(mensurations.map(m=>m.weekKey));
   const weeksP = new Set(performances.map(p=>p.weekKey));
   const weeksS = new Set(suivi.map(s=>s.weekKey));
   let combo = 0;
-  new Set([...weeksM, ...weeksP, ...weeksS]).forEach(wk=>{
-    if(weeksM.has(wk) && weeksP.has(wk) && weeksS.has(wk)) combo += 30;
-  });
+  weeksP.forEach(function(wk){ if(weeksS.has(wk)) combo += XP_COMBO; });
 
   return {
     seances:      performances.length * 15,
     streak:       computeStreakXP(),
     volume:       computeVolumeXP(),
     records,
-    mensurations: mensurations.length * 8,
-    suiviHebdo:   new Set(suivi.map(s=>s.weekKey)).size * 8,
+    suiviHebdo:   new Set(suivi.map(s=>s.weekKey)).size * XP_SUIVI,
     bonusDimanche: suivi.filter(s=>s.bonusDimanche).length * BONUS_DIMANCHE,
     combo
   };
@@ -3132,8 +3030,7 @@ const XP_LABELS = {
   streak:       'Semaine d\'affilée 🔥',
   volume:       'Volume soulevé',
   records:      'Nouveau record 🏆',
-  mensurations: 'Mensurations relevées',
-  suiviHebdo:   'Suivi hebdo complété',
+  suiviHebdo:   'Relevé hebdo complété',
   bonusDimanche: 'Bilan du dimanche 📅',
   combo:        'Semaine complète 🎯'
 };
@@ -3193,15 +3090,12 @@ function computeTotalXP(){
     }
   });
 
-  xp += mensurations.length*8;
-  xp += new Set(suivi.map(s=>s.weekKey)).size * 8;
+  xp += new Set(suivi.map(s=>s.weekKey)).size * XP_SUIVI;
   xp += suivi.filter(s=>s.bonusDimanche).length * BONUS_DIMANCHE; // une seule fois par semaine, même si plusieurs entrées existent
 
-  const weeksM = new Set(mensurations.map(m=>m.weekKey));
-  const weeksP = new Set(performances.map(p=>p.weekKey));
-  const weeksS = new Set(suivi.map(s=>s.weekKey));
-  const allWeeks = new Set([...weeksM, ...weeksP, ...weeksS]);
-  allWeeks.forEach(wk=>{ if(weeksM.has(wk) && weeksP.has(wk) && weeksS.has(wk)) xp+=30; });
+  const weeksP2 = new Set(performances.map(p=>p.weekKey));
+  const weeksS2 = new Set(suivi.map(s=>s.weekKey));
+  weeksP2.forEach(function(wk){ if(weeksS2.has(wk)) xp += XP_COMBO; });
 
   return xp;
 }
@@ -3252,7 +3146,7 @@ function goalPct(baseline, current, goal){
 
 function computeNextMilestone(){
   const candidates = [];
-  const weeksM = sortByWeek(mensurations);
+  const weeksM = sortByWeek(suivi);
   ['pec','bras','epaule','jambe','taille'].forEach(f=>{
     const g = objectifs.mensu[f]; if(g==null) return;
     const vals = weeksM.filter(m=>m[f]!=null); if(vals.length===0) return;
@@ -3356,53 +3250,31 @@ function isGoalReached(baseline, current, goal){
 
 
 
-async function deleteMensuration(id){
-  const m = mensurations.find(x=>x.id===id);
-  const ok = await confirmer('Supprimer cette mesure ?',
-    'La mesure de la semaine ' + (m ? weekLabel(m.weekKey) : '') +
-    " sera definitivement effacee, ainsi que l'XP qu'elle a rapporte.", 'Supprimer');
+async function deleteSuivi(id){
+  const e = suivi.find(function(x){ return x.id === id; });
+  const ok = await confirmer('Supprimer ce releve ?',
+    'Le releve de la semaine ' + (e ? weekLabel(e.weekKey) : '') +
+    " sera definitivement efface, ainsi que l'XP qu'il a rapporte.", 'Supprimer');
   if(!ok) return;
-  mensurations = mensurations.filter(m=>m.id!==id);
-  save('mensurations', mensurations);
-  renderMensuHistory(); renderMensuChart(); renderMensuRecap();
-  renderCompareSelects(); renderHome();
-  showToast('Mesure supprimee');
+  suivi = suivi.filter(function(x){ return x.id !== id; });
+  await save('suivi', suivi);
+  renderSuiviRecap(); renderSuiviHistory(); renderSuiviChart();
+  renderCompareSelects(); renderCorrelations(); renderHome();
+  showToast('Releve supprime');
 }
 
-function renderMensuHistory(){
-  const el = document.getElementById('mensu-history');
-  if(mensurations.length===0){el.innerHTML='<p class="empty">Aucune mesure enregistrée pour l\'instant.</p>';return;}
-  const weeks = sortByWeek(mensurations).slice().reverse();
-  let rows = weeks.map(m=>`
-    <tr>
-      <td><span class="sem-badge">${weekShort(m.weekKey)}</span>${m.date}${m.hasPhoto?` <button class="note-icon" onclick="showPhoto('${m.weekKey}')" title="Voir la photo">📷</button>`:''}${m.note?` <button class="note-icon" onclick="showNote(getMensuNote('${m.id}'))" title="Voir la note">📝</button>`:''}</td>
-      <td>${m.pec ?? '—'}</td><td>${m.bras ?? '—'}</td><td>${m.epaule ?? '—'}</td><td>${m.jambe ?? '—'}</td><td>${m.taille ?? '—'}</td>
-      <td><button class="del-btn" onclick="deleteMensuration('${m.id}')">✕</button></td>
-    </tr>`).join('');
-  el.innerHTML = `<table><thead><tr><th>Semaine</th><th>Pec.</th><th>Bras</th><th>Épaule</th><th>Jambe</th><th>Taille</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-
-function renderMensuChart(){
-  const field = document.getElementById('mensu-chart-select').value;
-  const weeks = sortByWeek(mensurations.filter(m=>m[field]!=null));
-  const goal = objectifs.mensu[field];
-  drawChart('mensu-chart-holder', weeks.map(m=>({label:weekShort(m.weekKey), value:m[field]})), 'cm', goal);
-  const goalEl = document.getElementById('mensu-goal');
-  if(goal!=null && weeks.length>0){
-    goalEl.innerHTML = goalProgressHTML(weeks[0][field], weeks[weeks.length-1][field], goal, 'cm');
-  } else { goalEl.innerHTML=''; }
-}
-
-// ---- Exercices ----
-function editExoGoal(id){
-  const exo = exercices.find(e=>e.id===id);
-  if(!exo) return;
-  const val = prompt(`Objectif de poids pour "${exo.name}" (kg, laisser vide pour aucun) :`, exo.objectif ?? '');
-  if(val===null) return;
-  exo.objectif = parseFloat(val)||null;
-  save('exercices', exercices);
-  renderExoList(); renderHome(); renderPerfChart();
-  showToast('Objectif mis à jour ✓');
+function renderExoList(){
+  const el = document.getElementById('exo-list');
+  if(exercices.length===0){el.innerHTML='<p class="empty">Aucun exercice pour l\'instant — ajoute ton premier exercice ci-dessus.</p>';return;}
+  el.innerHTML = exercices.map(e=>`
+    <div class="exo-row">
+      <span class="exo-name">${e.name}</span>
+      <span class="exo-goal">${e.objectif!=null?'Objectif : '+e.objectif+' kg':'Pas d\'objectif'}</span>
+      <div class="exo-actions">
+        <button class="small" onclick="editExoGoal('${e.id}')">Objectif</button>
+        <button class="del-btn" onclick="deleteExercice('${e.id}')">✕</button>
+      </div>
+    </div>`).join('');
 }
 
 async function deleteExercice(id){
@@ -3421,18 +3293,15 @@ async function deleteExercice(id){
   renderPerfWeekSelect(); renderSeanceRecap(); renderHome();
 }
 
-function renderExoList(){
-  const el = document.getElementById('exo-list');
-  if(exercices.length===0){el.innerHTML='<p class="empty">Aucun exercice pour l\'instant — ajoute ton premier exercice ci-dessus.</p>';return;}
-  el.innerHTML = exercices.map(e=>`
-    <div class="exo-row">
-      <span class="exo-name">${e.name}</span>
-      <span class="exo-goal">${e.objectif!=null?'Objectif : '+e.objectif+' kg':'Pas d\'objectif'}</span>
-      <div class="exo-actions">
-        <button class="small" onclick="editExoGoal('${e.id}')">Objectif</button>
-        <button class="del-btn" onclick="deleteExercice('${e.id}')">✕</button>
-      </div>
-    </div>`).join('');
+function editExoGoal(id){
+  const exo = exercices.find(e=>e.id===id);
+  if(!exo) return;
+  const val = prompt(`Objectif de poids pour "${exo.name}" (kg, laisser vide pour aucun) :`, exo.objectif ?? '');
+  if(val===null) return;
+  exo.objectif = parseFloat(val)||null;
+  save('exercices', exercices);
+  renderExoList(); renderHome(); renderPerfChart();
+  showToast('Objectif mis à jour ✓');
 }
 
 function renderPerfChartSelect(){
@@ -3489,76 +3358,41 @@ function renderPerfWeekSelect(){
   if(uniqueKeys.includes(prev)) sel.value = prev;
 }
 
-function renderPerfWeekView(){
-  const el = document.getElementById('perf-week-list');
-  const sel = document.getElementById('perf-week-select');
-  const wk = sel.value;
-  if(!wk || exercices.length===0){ el.innerHTML = '<p class="empty">Pas encore de séance enregistrée.</p>'; return; }
-
-  let rows = exercices.map(exo=>{
-    const entries = getExoEntries(exo.id);
-    const idx = entries.findIndex(e=>e.weekKey===wk);
-    if(idx===-1){
-      return `<div class="week-row"><span class="wr-name">${exo.name}</span><span class="wr-val" style="color:var(--ink-soft);font-size:14px;">—</span></div>`;
-    }
-    const entry = entries[idx];
-    const maxPoids = Math.max(...entry.sets.map(s=>s.poids));
-    const prevEntry = idx>0 ? entries[idx-1] : null;
-    let pill = '<span class="delta-pill flat">1ère fois</span>';
-    if(prevEntry){
-      const prevMax = Math.max(...prevEntry.sets.map(s=>s.poids));
-      const diff = +(maxPoids-prevMax).toFixed(1);
-      if(diff>0) pill = `<span class="delta-pill up">▲ +${diff} kg vs ${weekShort(prevEntry.weekKey)}</span>`;
-      else if(diff<0) pill = `<span class="delta-pill down">▼ ${diff} kg vs ${weekShort(prevEntry.weekKey)}</span>`;
-      else pill = `<span class="delta-pill flat">= vs ${weekShort(prevEntry.weekKey)}</span>`;
-    }
-    const goalHTML = exo.objectif!=null ? `<div class="wr-goal">${goalProgressHTML(Math.max(...entries[0].sets.map(s=>s.poids)), maxPoids, exo.objectif, 'kg')}</div>` : '';
-    return `<div class="week-row">
-      <span class="wr-name">${exo.name}</span>
-      <span class="wr-val">${maxPoids} <span style="font-size:12px;">kg</span></span>
-      ${pill}
-      ${goalHTML}
-    </div>`;
-  }).join('');
-  el.innerHTML = rows;
-}
-
-// ---- Suivi hebdo ----
-async function deleteSuivi(id){
-  const e = suivi.find(x=>x.id===id);
-  const ok = await confirmer('Supprimer ce suivi ?',
-    'Le suivi de la semaine ' + (e ? weekLabel(e.weekKey) : '') +
-    " sera definitivement efface, ainsi que l'XP qu'il a rapporte.", 'Supprimer');
-  if(!ok) return;
-  suivi = suivi.filter(s=>s.id!==id);
-  save('suivi', suivi);
-  renderSuiviHistory(); renderSuiviChart(); renderHome();
-}
-
 function renderSuiviHistory(){
   const el = document.getElementById('suivi-history');
-  if(suivi.length===0){el.innerHTML='<p class="empty">Aucune donnée enregistrée pour l\'instant.</p>';return;}
+  if(!el) return;
+  if(suivi.length === 0){
+    el.innerHTML = '<p class="empty">Aucun releve enregistre pour l\'instant.</p>';
+    return;
+  }
   const weeks = sortByWeek(suivi).slice().reverse();
-  let rows = weeks.map(s=>`
-    <tr>
-      <td><span class="sem-badge">${weekShort(s.weekKey)}</span>${s.date}${s.note?` <button class="note-icon" onclick="showNote(getSuiviNote('${s.id}'))" title="Voir la note">📝</button>`:''}</td>
-      <td>${s.calories ?? '—'}</td><td>${s.poids ?? '—'}</td><td>${s.taille ?? '—'}</td>
-      <td><button class="del-btn" onclick="deleteSuivi('${s.id}')">✕</button></td>
-    </tr>`).join('');
-  el.innerHTML = `<table><thead><tr><th>Semaine</th><th>Calories</th><th>Poids</th><th>Taille</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const rows = weeks.map(function(s){
+    const cells = SUIVI_FIELDS.map(function(f){
+      return '<td>' + (s[f.key] == null ? '&mdash;' : s[f.key]) + '</td>';
+    }).join('');
+    return '<tr><td><span class="sem-badge">' + weekShort(s.weekKey) + '</span>' + s.date +
+      (s.hasPhoto ? ' <button class="note-icon" onclick="showPhoto(\'' + s.weekKey + '\')" title="Voir la photo">&#128247;</button>' : '') +
+      '</td>' + cells +
+      '<td><button class="del-btn" onclick="deleteSuivi(\'' + s.id + '\')" title="Supprimer">&#10005;</button></td></tr>';
+  }).join('');
+  const entetes = SUIVI_FIELDS.map(function(f){ return '<th>' + f.label + '</th>'; }).join('');
+  el.innerHTML = '<div style="overflow-x:auto;"><table><thead><tr><th>Semaine</th>' +
+    entetes + '<th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 function renderSuiviChart(){
-  const field = document.getElementById('suivi-chart-select').value;
-  const units = {poids:'kg', taille:'cm', calories:'kcal'};
-  const weeks = sortByWeek(suivi.filter(s=>s[field]!=null));
-  const goal = field==='calories' ? null : objectifs.suivi[field];
-  drawChart('suivi-chart-holder', weeks.map(s=>({label:weekShort(s.weekKey), value:s[field]})), units[field], goal);
-  const goalEl = document.getElementById('suivi-goal');
-  if(goal!=null && weeks.length>0){
-    goalEl.innerHTML = goalProgressHTML(weeks[0][field], weeks[weeks.length-1][field], goal, units[field]);
-  } else { goalEl.innerHTML=''; }
+  const sel = document.getElementById('suivi-field-select');
+  if(!sel) return;
+  const field = sel.value;
+  const def = SUIVI_FIELDS.find(function(f){ return f.key === field; });
+  const weeks = sortByWeek(suivi.filter(function(s){ return s[field] != null; }));
+  // Les calories n'ont pas d'objectif : c'est une moyenne, pas une cible
+  const goal = field === 'calories' ? null : (objectifs.mensu[field] ?? null);
+  drawChart('suivi-chart',
+    weeks.map(function(s){ return {label: weekShort(s.weekKey), value: s[field]}; }),
+    def ? def.unit : '', goal);
 }
+
 
 // ---- Graphique SVG générique ----
 function drawChart(holderId, points, unit, goal){
