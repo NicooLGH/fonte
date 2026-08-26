@@ -1294,3 +1294,23 @@ table tr{border-color:var(--glass-tint-strong);}
   font-family:var(--font-body);font-size:13px;
   padding:8px 16px;max-width:230px;
 }
+
+/* ============================================================
+   CORRECTIFS
+   ============================================================ */
+
+/* Le logo ramene a l'accueil */
+.brand{cursor:pointer;user-select:none;}
+.brand:hover span{opacity:.75;}
+
+/* Sur petit ecran : uniquement le logo et le burger.
+   Cette regle est placee en fin de fichier car la definition
+   de .nav-avatar arrive apres la media query d'origine et
+   l'ecrasait. */
+@media(max-width:900px){
+  .topbar .nav-avatar,
+  .topbar .nav-logout,
+  .topbar .nav-week,
+  .topbar .streak-badge{display:none !important;}
+  .topbar{justify-content:space-between;padding:8px 12px 8px 18px;}
+}

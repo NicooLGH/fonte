@@ -489,7 +489,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.0.0';
+const APP_VERSION = 'v3.0.1';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -1544,9 +1544,17 @@ function dateCourte(iso){
 }
 function anciennete(iso){
   if(!iso) return '';
-  const jours = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if(jours < 1)  return "depuis aujourd'hui";
-  if(jours < 7)  return 'depuis ' + jours + ' jour' + (jours>1?'s':'');
+  // On compare des jours calendaires : une amitie nouee hier a 23h
+  // doit afficher "depuis hier", pas "depuis aujourd'hui".
+  const d = new Date(iso);
+  const debutAlors = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const n = new Date();
+  const debutAujourdhui = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const jours = Math.round((debutAujourdhui - debutAlors) / 86400000);
+
+  if(jours <= 0)  return "depuis aujourd'hui";
+  if(jours === 1) return 'depuis hier';
+  if(jours < 7)   return 'depuis ' + jours + ' jours';
   if(jours < 31){ const sem = Math.floor(jours/7); return 'depuis ' + sem + ' semaine' + (sem>1?'s':''); }
   const mois = Math.floor(jours/30);
   if(mois < 12) return 'depuis ' + mois + ' mois';
@@ -1563,6 +1571,13 @@ function ouvrirVueProfil(){
   document.getElementById('view-profil').classList.add('active');
   positionNavSlider();
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Le logo ramene a l'accueil, depuis n'importe quelle page
+function allerAccueil(){
+  closeBurger();
+  const btn = document.querySelector('nav.tabs button[data-view="accueil"]');
+  if(btn) btn.click();
 }
 
 function quitterProfil(){
