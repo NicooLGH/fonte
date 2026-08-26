@@ -6,7 +6,7 @@
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<link rel="stylesheet" href="style.css?v=342">
+<link rel="stylesheet" href="style.css?v=350">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -418,7 +418,7 @@
     </div>
 
     <div class="card">
-      <h2>Apparence</h2>
+      <h2>Confidentialité</h2>
       <div class="settings-row">
         <div class="settings-label">
           <strong>Partager mes séances</strong>
@@ -429,6 +429,20 @@
           <div class="theme-toggle">
             <button class="theme-btn" data-partage="oui" onclick="setPartageSeances(true)">Amis</button>
             <button class="theme-btn" data-partage="non" onclick="setPartageSeances(false)">Privé</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Afficher mon statut</strong>
+          <span>« En ligne » et « vu il y a X » sur ton profil et dans la liste de tes amis.<br>
+            Seule une durée arrondie est partagée, jamais l'heure exacte de tes connexions.</span>
+        </div>
+        <div class="settings-control">
+          <div class="theme-toggle">
+            <button class="theme-btn" data-presence="oui" onclick="setPartagePresence(true)">Visible</button>
+            <button class="theme-btn" data-presence="non" onclick="setPartagePresence(false)">Masqué</button>
           </div>
         </div>
       </div>
@@ -722,6 +736,6 @@
 
 
 
-<script src="app.js?v=342"></script>
+<script src="app.js?v=350"></script>
 </body>
 </html>

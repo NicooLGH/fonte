@@ -1727,3 +1727,29 @@ table tr{border-color:var(--glass-tint-strong);}
 
 /* Les trois icones de droite gardent la meme taille */
 .nav-avatar{width:34px;height:34px;font-size:16px;}
+
+/* Les deux boutons doivent rester colles a droite : avec
+   space-between et les autres elements masques, l'engrenage
+   se retrouvait au milieu de la barre. */
+@media(max-width:900px){
+  .topbar{justify-content:flex-start;}
+  .topbar .nav-reglages{margin-left:auto;}
+  .topbar .nav-logout{margin-left:6px;}
+}
+
+/* ============================================================
+   STATUT DE PRESENCE
+   ============================================================ */
+.presence{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);
+}
+.presence.en-ligne{color:var(--accent-2);}
+.presence-point{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--accent-2);flex-shrink:0;
+  box-shadow:0 0 0 3px rgba(var(--accent-2-rgb),0.18);
+  animation:pulsePresence 2.4s ease-in-out infinite;
+}
+@keyframes pulsePresence{0%,100%{opacity:1;}50%{opacity:.45;}}
+.profil-tag .presence{font-size:11px;}

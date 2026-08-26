@@ -343,7 +343,7 @@ async function loadAll(){
   try{
     const uid = currentUser.id;
     const [rProfile, rExos, rSeances, rSeries, rSuivi, rObj, rRemind] = await Promise.all([
-      db.from('profiles').select('pseudo, avatar, onboarded, partage_seances').eq('id', uid).maybeSingle(),
+      db.from('profiles').select('pseudo, avatar, onboarded, partage_seances, partage_presence').eq('id', uid).maybeSingle(),
       db.from('exercices').select('*').order('created_at'),
       db.from('seances').select('*'),
       db.from('series').select('*').order('position'),
@@ -360,6 +360,7 @@ async function loadAll(){
     avatar    = rProfile.data?.avatar || '💪';
     onboarded = rProfile.data?.onboarded ?? false;
     partageSeances = rProfile.data?.partage_seances ?? false;
+    partagePresence = rProfile.data?.partage_presence ?? true;
 
     exercices = (rExos.data||[]).map(e=>({
       id: e.id, name: e.name,
@@ -453,6 +454,7 @@ async function loadAll(){
 
   const selSuivi = document.getElementById('suivi-field-select');
   if(selSuivi) selSuivi.addEventListener('change', renderSuiviChart);
+  safe('presence', demarrerPresence);
   safe('nav basse', majBottomNav);
   safe('jalon', chargerJalonChoisi);
   safe('empreintes', initEmpreintes);
@@ -485,7 +487,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.4.2';
+const APP_VERSION = 'v3.5.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -688,6 +690,7 @@ function renderSettings(){
   document.getElementById('settings-email').textContent = currentUser ? currentUser.email : '—';
   renderAvatarPicker('settings-avatar-picker', avatar, saveAvatar);
   renderPartageBtns();
+  renderPresenceBtns();
   document.querySelectorAll('.theme-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.themeValue===themePref);
   });
@@ -880,7 +883,7 @@ function buildSuiviWizard(){
   const passees = sortByWeek(suivi.filter(function(x){ return x.weekKey !== wk; }));
   const prevEntry = passees.length ? passees[passees.length-1] : null;
 
-  const data = {};
+  const data = {note: existing ? (existing.note || '') : ''};
   SUIVI_FIELDS.forEach(function(f){ data[f.key] = existing ? existing[f.key] : null; });
 
   const steps = SUIVI_FIELDS.map(function(f){
@@ -888,6 +891,25 @@ function buildSuiviWizard(){
       function(){ return data[f.key]; },
       function(v){ data[f.key] = v; },
       function(){ return prevEntry ? prevEntry[f.key] : null; });
+  });
+
+  steps.push({
+    title:'Une note ?',
+    render:function(){
+      return '<div class="wiz-field"><label>Note de la semaine (facultatif)</label>' +
+        '<textarea id="wiz-note-suivi" class="wiz-textarea" maxlength="280" rows="4" ' +
+        'placeholder="ex : semaine chargee au travail, sommeil moyen"></textarea>' +
+        '<div class="wiz-hint">Pour te souvenir du contexte. Elle reste privee : ' +
+        'personne d\'autre ne la voit, contrairement aux notes de seance.</div></div>';
+    },
+    after:function(){
+      const ta = document.getElementById('wiz-note-suivi');
+      if(ta) ta.value = data.note || '';
+    },
+    collect:function(){
+      const ta = document.getElementById('wiz-note-suivi');
+      data.note = ta ? ta.value.trim().slice(0,280) : '';
+    }
   });
 
   steps.push(recapStep('Récapitulatif', SUIVI_FIELDS, function(){ return data; }, function(){
@@ -918,9 +940,10 @@ function buildSuiviWizard(){
       if(entry){
         // Modification : ni la date ni le bonus deja acquis ne bougent
         SUIVI_FIELDS.forEach(function(f){ entry[f.key] = data[f.key]; });
+        entry.note = data.note || null;
       } else {
         entry = {id: crypto.randomUUID(), date: todayStr(), weekKey: wk,
-                 bonusDimanche: estDimanche(), hasPhoto: false, note: null};
+                 bonusDimanche: estDimanche(), hasPhoto: false, note: data.note || null};
         SUIVI_FIELDS.forEach(function(f){ entry[f.key] = data[f.key]; });
         suivi.push(entry);
       }
@@ -1861,6 +1884,8 @@ function renderSuiviRecap(){
   if(!el || !btn) return;
   if(entry){
     el.innerHTML = recapHTML(SUIVI_FIELDS, entry) +
+      (entry.note ? '<div class="seance-note" style="margin-top:10px;">&#128221; ' +
+        String(entry.note).replace(/</g,'&lt;') + '</div>' : '') +
       (entry.bonusDimanche ? '<div class="wiz-prev">&#128197; Bilan fait le dimanche &mdash; bonus obtenu</div>' : '') +
       (entry.hasPhoto
         ? '<button class="small" style="margin-top:10px;" onclick="showPhoto(\'' + entry.weekKey + '\')">&#128247; Voir la photo de la semaine</button>'
@@ -1968,6 +1993,69 @@ function majConnexion(){
 window.addEventListener('online',  function(){ majConnexion(); showToast('Connexion retablie'); });
 window.addEventListener('offline', majConnexion);
 majConnexion();
+
+// ============================================================
+//  PRESENCE
+// ============================================================
+// On signale sa presence a l'ouverture puis toutes les trois
+// minutes, et uniquement quand l'onglet est visible : inutile
+// de faire du bruit reseau pendant qu'une page dort en fond.
+let partagePresence = true;
+let pingTimer = null;
+
+async function pingPresence(){
+  if(!currentUser || document.hidden) return;
+  try{ await db.rpc('ping_presence'); }catch(e){}
+}
+
+function demarrerPresence(){
+  pingPresence();
+  if(pingTimer) clearInterval(pingTimer);
+  pingTimer = setInterval(pingPresence, 3*60*1000);
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) pingPresence();
+  });
+}
+
+// Duree lisible : "en ligne", "il y a 5 min", "il y a 2 j"
+function presenceLisible(sec){
+  if(sec == null) return null;
+  if(sec < 300)   return 'en ligne';
+  const m = Math.floor(sec/60);
+  if(m < 60)  return 'vu il y a ' + m + ' min';
+  const h = Math.floor(m/60);
+  if(h < 24)  return 'vu il y a ' + h + ' h';
+  const j = Math.floor(h/24);
+  if(j === 1) return 'vu hier';
+  if(j < 7)   return 'vu il y a ' + j + ' jours';
+  const sem = Math.floor(j/7);
+  if(sem < 5) return 'vu il y a ' + sem + ' semaine' + (sem>1?'s':'');
+  return 'vu il y a longtemps';
+}
+
+function pastillePresence(sec){
+  const txt = presenceLisible(sec);
+  if(!txt) return '';
+  const enLigne = sec != null && sec < 300;
+  return '<span class="presence' + (enLigne ? ' en-ligne' : '') + '">' +
+    (enLigne ? '<span class="presence-point"></span>' : '') + txt + '</span>';
+}
+
+async function setPartagePresence(actif){
+  try{
+    const res = await db.rpc('set_partage_presence', {actif: actif});
+    if(res.error) throw res.error;
+    partagePresence = actif;
+    renderPresenceBtns();
+    showToast(actif ? 'Ton statut est visible' : 'Ton statut est masque');
+  }catch(e){ showToast(e.message || 'Enregistrement impossible'); }
+}
+
+function renderPresenceBtns(){
+  document.querySelectorAll('.theme-btn[data-presence]').forEach(function(b){
+    b.classList.toggle('active', (b.dataset.presence === 'oui') === partagePresence);
+  });
+}
 
 // ---- Aide contextuelle ----
 function toggleHelp(id){
@@ -2196,6 +2284,8 @@ async function openProfile(cle, parPseudo){
             : '<span class="profil-tag">Aucune serie en cours</span>') +
           (d.relation==='ami' && d.ami_depuis
             ? '<span class="profil-tag ami">&#129309; Amis ' + anciennete(d.ami_depuis) + '</span>' : '') +
+          (presenceLisible(d.presence_sec)
+            ? '<span class="profil-tag">' + pastillePresence(d.presence_sec) + '</span>' : '') +
         '</div>' +
         (d.relation==='ami' && d.ami_depuis
           ? '<div class="profil-depuis">Ami depuis le ' + dateCourte(d.ami_depuis) + '</div>' : '') +
@@ -2481,7 +2571,9 @@ function renderAmis(){
   if((amisData.amis||[]).length){
     listEl.innerHTML = amisData.amis.map(function(p){
       const streak = p.streak || 0;
-      const meta = (p.actif_semaine
+      const pres = presenceLisible(p.presence_sec);
+      const meta = (pres ? pastillePresence(p.presence_sec) + ' &middot; ' : '') +
+        (p.actif_semaine
           ? '<span class="actif">&#9679; entraine cette semaine</span>'
           : 'pas encore actif cette semaine') +
         (streak > 0 ? ' &middot; ' + streak + ' semaine' + (streak>1?'s':'') + " d'affilee" : '') +
@@ -2782,6 +2874,7 @@ async function setPartageSeances(actif){
     if(res.error) throw res.error;
     partageSeances = actif;
     renderPartageBtns();
+  renderPresenceBtns();
     showToast(actif ? 'Tes seances sont visibles par tes amis' : 'Tes seances sont privees');
   }catch(e){ showToast(e.message || 'Enregistrement impossible'); }
 }
@@ -4077,6 +4170,7 @@ function renderSuiviHistory(){
     }).join('');
     return '<tr><td><span class="sem-badge">' + weekShort(s.weekKey) + '</span>' + s.date +
       (s.hasPhoto ? ' <button class="note-icon" onclick="showPhoto(\'' + s.weekKey + '\')" title="Voir la photo">&#128247;</button>' : '') +
+      (s.note ? ' <button class="note-icon" onclick="showNote(' + JSON.stringify(s.note).replace(/"/g,'&quot;') + ')" title="Voir la note">&#128221;</button>' : '') +
       '</td>' + cells +
       '<td><button class="del-btn" onclick="deleteSuivi(\'' + s.id + '\')" title="Supprimer">&#10005;</button></td></tr>';
   }).join('');
