@@ -1636,3 +1636,63 @@ table tr{border-color:var(--glass-tint-strong);}
   display:block;width:100%;box-sizing:border-box;
   white-space:normal;line-height:1.5;
 }
+
+/* ============================================================
+   FIL D'ACTUALITE UNIFIE
+   ============================================================ */
+
+/* Icone des reglages, l'avatar menant desormais au profil */
+.nav-reglages{
+  width:38px;height:38px;flex-shrink:0;border-radius:50%;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.nav-reglages:hover{color:var(--ink);border-color:rgba(255,255,255,0.2);}
+@media(max-width:900px){ .nav-reglages{display:none;} }
+
+/* Une seance d'ami, presentee comme une publication */
+.fil-post{
+  display:block;padding:18px 0;
+  border-bottom:1px solid var(--hairline);
+}
+.fil-post:last-child{border-bottom:none;}
+.fil-post-tete{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.fil-post-tete .fil-auteur{width:auto;flex-direction:row;}
+.fil-post-meta{flex:1;min-width:0;}
+.fil-nom-lien{
+  background:none;border:none;padding:0;cursor:pointer;
+  font-family:var(--font-body);font-weight:600;font-size:15px;color:var(--ink);
+}
+.fil-nom-lien:hover{color:var(--accent-2);}
+.fil-post-sous{
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:3px;
+}
+.fil-note{
+  font-size:14.5px;line-height:1.55;color:var(--ink);
+  margin:0 0 14px;padding-left:2px;
+}
+.fil-detail{
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+  border-radius:16px;padding:6px 16px;margin-bottom:12px;
+}
+
+/* Reaction ou encouragement recu */
+.fil-signal{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 0;border-bottom:1px solid var(--hairline);
+}
+.fil-signal:last-child{border-bottom:none;}
+.fil-signal.neuf{
+  padding-left:12px;border-left:2px solid var(--accent-2);
+}
+
+@media(max-width:560px){
+  .fil-note{font-size:14px;}
+  .fil-detail{padding:4px 12px;}
+}
+
+@media(max-width:900px){
+  #bottom-nav .bn-item{max-width:23%;}
+  #bn-avatar{font-size:19px;}
+}

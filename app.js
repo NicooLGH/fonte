@@ -485,7 +485,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.3.0';
+const APP_VERSION = 'v3.4.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -538,10 +538,10 @@ function renderAvatarPicker(containerId, selected, onPick){
 }
 
 function renderAvatar(){
-  const nav = document.getElementById('nav-avatar');
-  const burger = document.getElementById('burger-avatar');
-  if(nav) nav.textContent = avatar;
-  if(burger) burger.textContent = avatar;
+  ['nav-avatar','burger-avatar','bn-avatar'].forEach(function(id){
+    const el = document.getElementById(id);
+    if(el) el.textContent = avatar;
+  });
 }
 
 async function saveAvatar(newAvatar){
@@ -674,11 +674,12 @@ function closeDemo(){ document.getElementById('demo-modal').style.display = 'non
 // ============================================================
 function openSettings(){
   nettoyerAdresseProfil();
+  closeBurger();
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-reglages').classList.add('active');
-  document.getElementById('nav-avatar').classList.add('active');
   positionNavSlider();
+  majBottomNav();
   renderSettings();
 }
 
@@ -2147,7 +2148,6 @@ function ouvrirVueProfil(){
   if(actif) vueAvantProfil = actif.dataset.view;
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById('nav-avatar')?.classList.remove('active');
   document.getElementById('view-profil').classList.add('active');
   positionNavSlider();
   window.scrollTo({top:0, behavior:'smooth'});
@@ -2374,50 +2374,6 @@ let activiteVue = 0;
 
 function cleActiviteVue(){ return 'fonte-activite-vue:' + (currentUser ? currentUser.id : ''); }
 
-// Reactions et encouragements sont regroupes : deux listes
-// separees allongeaient l'accueil sans rien apporter de plus.
-async function chargerActivite(){
-  const el = document.getElementById('activite-sociale');
-  if(!el) return;
-  let reactions = [];
-  try{
-    const rr = await db.rpc('mes_reactions');
-    const re = await db.rpc('mes_encouragements');
-    if(rr.error) throw rr.error;
-    if(re.error) throw re.error;
-    reactions = rr.data || [];
-    encData = re.data || {recus:[], envoyes:{}};
-  }catch(e){
-    console.error('Activite indisponible', e);
-    el.style.display = 'none'; return;
-  }
-
-  const items = reactions.map(function(r){
-      return {date:r.date, signe:r.signe, pseudo:r.pseudo,
-              texte:'a reagi a ta seance du ' + r.seance_date};
-    }).concat((encData.recus||[]).map(function(e){
-      return {date:e.date, signe:e.signe, pseudo:e.pseudo, texte:"t'encourage cette semaine"};
-    })).sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
-
-  if(!items.length){ el.style.display = 'none'; majPastilleActivite(0); return; }
-
-  try{ activiteVue = parseInt(localStorage.getItem(cleActiviteVue()) || '0', 10); }catch(e){ activiteVue = 0; }
-  const nouveaux = items.filter(function(i){ return new Date(i.date).getTime() > activiteVue; }).length;
-  majPastilleActivite(nouveaux);
-
-  el.style.display = 'block';
-  el.innerHTML = '<h2>Activite' +
-      (nouveaux ? ' <span class="tab-badge">' + nouveaux + '</span>' : '') + '</h2>' +
-    '<div class="enc-list">' + items.map(function(i){
-      const neuf = new Date(i.date).getTime() > activiteVue;
-      return '<div class="enc-row' + (neuf ? ' neuf' : '') + '">' +
-        '<span class="enc-signe">' + i.signe + '</span>' +
-        '<span class="enc-texte"><strong>' + String(i.pseudo).replace(/</g,'&lt;') +
-        '</strong> ' + i.texte + '.</span></div>';
-    }).join('') + '</div>' +
-    (nouveaux ? '<button class="small" style="margin-top:14px;" onclick="marquerActiviteLue()">Marquer comme lu</button>' : '');
-}
-
 function majPastilleActivite(n){
   ['tab-badge-accueil','burger-badge-accueil'].forEach(function(id){
     const b = document.getElementById(id);
@@ -2430,7 +2386,7 @@ function majPastilleActivite(n){
 function marquerActiviteLue(){
   activiteVue = Date.now();
   try{ localStorage.setItem(cleActiviteVue(), String(activiteVue)); }catch(e){}
-  chargerActivite();
+  chargerFil();
 }
 
 async function encourager(id, signe){
@@ -2479,7 +2435,6 @@ async function chargerAmis(){
   renderAmis();
   renderAmisBadge();
   chargerFil();
-  chargerActivite();
 }
 
 function renderAmisBadge(){
@@ -2556,72 +2511,157 @@ function renderAmis(){
 }
 
 // ============================================================
-//  FIL D'ACTUALITE DES AMIS
+//  FIL D'ACTUALITE
 // ============================================================
-// Remplace le decompte anonyme : on voit ce que les amis ont
-// fait, avec la possibilite de reagir sans quitter l'accueil.
-async function chargerFil(){
-  const el = document.getElementById('fil-amis');
-  if(!el) return;
-  const tous = amisData.amis || [];
-  if(tous.length === 0){ el.style.display = 'none'; return; }
+// Un seul fil chronologique : les seances des amis, les
+// reactions recues et les encouragements. Deux blocs separes
+// n'apportaient rien et allongeaient la page.
+// La pagination est indispensable : sans limite, quelques amis
+// actifs suffisent a rendre l'accueil interminable.
+const FIL_PAS = 10;
+let filVisible = FIL_PAS;
+let filItems = [];
 
-  let fil = [];
+async function chargerFil(){
+  const el = document.getElementById('fil-actu');
+  if(!el) return;
+
+  let seances = [], reactions = [];
   try{
-    const res = await db.rpc('fil_amis');
-    if(res.error) throw res.error;
-    fil = res.data || [];
+    const [rf, rr, re] = await Promise.all([
+      db.rpc('fil_amis'), db.rpc('mes_reactions'), db.rpc('mes_encouragements')
+    ]);
+    if(rf.error) throw rf.error;
+    if(rr.error) throw rr.error;
+    if(re.error) throw re.error;
+    seances = rf.data || [];
+    reactions = rr.data || [];
+    encData = re.data || {recus:[], envoyes:{}};
   }catch(e){ console.error('Fil indisponible', e); }
 
-  const actifs = tous.filter(function(a){ return a.actif_semaine; });
-  const inactifs = tous.filter(function(a){ return !a.actif_semaine; });
-  el.style.display = 'block';
+  filItems = []
+    .concat(seances.map(function(f){ return {type:'seance', date:f.date, tri:f.date, data:f}; }))
+    .concat(reactions.map(function(r){
+      return {type:'reaction', tri:String(r.date).slice(0,10), date:r.date, data:r};
+    }))
+    .concat((encData.recus||[]).map(function(e){
+      return {type:'encouragement', tri:String(e.date).slice(0,10), date:e.date, data:e};
+    }))
+    .sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
 
-  let html = '<h2>Tes amis cette semaine</h2><p class="block-intro">' +
+  try{ activiteVue = parseInt(localStorage.getItem(cleActiviteVue()) || '0', 10); }catch(e){ activiteVue = 0; }
+  const nouveaux = filItems.filter(function(i){
+    return i.type !== 'seance' && new Date(i.date).getTime() > activiteVue;
+  }).length;
+  majPastilleActivite(nouveaux);
+  majBottomNav();
+
+  renderFil(nouveaux);
+}
+
+function renderFil(nouveaux){
+  const el = document.getElementById('fil-actu');
+  if(!el) return;
+
+  const tous = amisData.amis || [];
+  const actifs = tous.filter(function(a){ return a.actif_semaine; });
+
+  let html = '<h2>Fil d\'actualite' +
+    (nouveaux ? ' <span class="tab-badge">' + nouveaux + '</span>' : '') + '</h2>';
+
+  if(tous.length === 0){
+    html += '<p class="recap-empty">Tu n\'as pas encore d\'amis. Cherche quelqu\'un par son pseudo dans l\'onglet Amis, ' +
+      'ou partage ta carte de profil.</p>';
+    el.innerHTML = html;
+    return;
+  }
+
+  html += '<p class="block-intro">' +
     (actifs.length === 0
-      ? "Personne n'a encore bouge cette semaine. A toi d'ouvrir le bal."
+      ? "Personne ne s'est entraine cette semaine. A toi d'ouvrir le bal."
       : (actifs.length === tous.length
           ? '<strong>Tout le monde</strong> s\'est entraine cette semaine.'
           : '<strong>' + actifs.length + ' sur ' + tous.length + '</strong> se ' +
             (actifs.length > 1 ? 'sont entraines' : 'est entraine') + ' cette semaine.')) +
     '</p>';
 
-  if(fil.length){
-    html += fil.map(function(f){
-      const noms = (f.exercices||[]).join(', ');
-      const compte = f.reactions || {};
-      const totaux = Object.keys(compte).map(function(sg){
-        return '<span class="reac-compte">' + sg + ' ' + compte[sg] + '</span>';
-      }).join('');
-      const boutons = REACTIONS.map(function(sg){
-        return '<button class="reac-btn' + (f.ma_reaction===sg?' choisi':'') +
-          '" onclick="reagirDepuisFil(\'' + f.seance_id + '\',\'' + sg + '\')" title="Reagir">' + sg + '</button>';
-      }).join('');
-      return '<div class="fil-item">' +
-        '<button class="fil-auteur" onclick="openProfile(\'' + f.auteur_id + '\')">' +
-          '<span class="fil-avatar">' + (f.avatar || '&#128170;') + '</span>' +
-          '<span class="fil-nom">' + String(f.pseudo).replace(/</g,'&lt;') + '</span></button>' +
-        '<div class="fil-corps"><div class="seance-entete">' +
-            '<span class="recap-label">' + f.date +
-              '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' +
-              String(noms).replace(/</g,'&lt;') + '</small></span>' +
-            '<span class="recap-value">' + Math.round(f.volume) + '<span class="unit">kg vol.</span></span>' +
-          '</div>' +
-          (f.duree_sec ? '<div class="seance-duree">&#9201; ' + dureeLisible(f.duree_sec) + '</div>' : '') +
-          (f.note ? '<div class="seance-note">&#128221; ' + String(f.note).replace(/</g,'&lt;') + '</div>' : '') +
-          '<div class="reac-row">' + totaux + boutons + '</div>' +
-        '</div></div>';
-    }).join('');
-  } else if(actifs.length){
-    html += '<p class="recap-empty">Tes amis actifs ne partagent pas le detail de leurs seances.</p>' +
-      '<div class="ami-grid">' + actifs.map(function(a){
-        return '<button class="ami-carte" onclick="openProfile(\'' + a.id + '\')">' +
-          '<span class="ami-carte-avatar">' + (a.avatar || '&#128170;') + '</span>' +
-          '<span class="ami-carte-nom">' + String(a.pseudo).replace(/</g,'&lt;') + '</span></button>';
-      }).join('') + '</div>';
+  if(!filItems.length){
+    html += '<p class="recap-empty">Rien a afficher pour l\'instant.</p>';
+    el.innerHTML = html;
+    return;
   }
 
+  html += filItems.slice(0, filVisible).map(renderFilItem).join('');
+
+  if(filVisible < filItems.length){
+    html += '<button class="ghost" style="width:100%;margin-top:16px;border-radius:999px;" ' +
+      'onclick="voirPlusFil()">Voir plus (' + (filItems.length - filVisible) + ')</button>';
+  }
+  if(nouveaux){
+    html += '<button class="small" style="margin-top:12px;" onclick="marquerActiviteLue()">Marquer comme lu</button>';
+  }
   el.innerHTML = html;
+}
+
+function voirPlusFil(){
+  filVisible += FIL_PAS;
+  renderFil(0);
+}
+
+function renderFilItem(item){
+  if(item.type === 'seance') return filSeance(item.data);
+
+  const d = item.data;
+  const neuf = new Date(item.date).getTime() > activiteVue;
+  const texte = item.type === 'reaction'
+    ? 'a reagi a ta seance du ' + d.seance_date
+    : "t'encourage cette semaine";
+  return '<div class="fil-item fil-signal' + (neuf ? ' neuf' : '') + '">' +
+    '<span class="enc-signe">' + d.signe + '</span>' +
+    '<span class="enc-texte"><strong>' + String(d.pseudo).replace(/</g,'&lt;') +
+    '</strong> ' + texte + '.</span></div>';
+}
+
+// Une seance d'ami, presentee comme une publication
+function filSeance(f){
+  const compte = f.reactions || {};
+  const totaux = Object.keys(compte).map(function(sg){
+    return '<span class="reac-compte">' + sg + ' ' + compte[sg] + '</span>';
+  }).join('');
+  const boutons = REACTIONS.map(function(sg){
+    return '<button class="reac-btn' + (f.ma_reaction===sg?' choisi':'') +
+      '" onclick="reagirDepuisFil(\'' + f.seance_id + '\',\'' + sg + '\')" title="Reagir">' + sg + '</button>';
+  }).join('');
+
+  const blocs = f.blocs || [];
+  const detail = blocs.length
+    ? '<div class="fil-detail">' + blocs.map(function(b){
+        const chips = (b.series||[]).map(function(x){
+          return '<span class="set-chip">' + x.poids + 'kg\u00D7' + x.reps + '</span>';
+        }).join('');
+        return '<div class="seance-exo">' +
+          '<span><span class="seance-exo-nom">' + String(b.nom).replace(/</g,'&lt;') + '</span>' +
+          '<span class="seance-exo-series">' + chips + '</span></span>' +
+          '<span class="seance-exo-vol">' + Math.round(b.volume) + ' kg</span></div>';
+      }).join('') + '</div>'
+    : '';
+
+  return '<div class="fil-item fil-post">' +
+    '<div class="fil-post-tete">' +
+      '<button class="fil-auteur" onclick="openProfile(\'' + f.auteur_id + '\')">' +
+        '<span class="fil-avatar">' + (f.avatar || '&#128170;') + '</span></button>' +
+      '<div class="fil-post-meta">' +
+        '<button class="fil-nom-lien" onclick="openProfile(\'' + f.auteur_id + '\')">' +
+          String(f.pseudo).replace(/</g,'&lt;') + '</button>' +
+        '<div class="fil-post-sous">' + f.date +
+          (f.duree_sec ? ' &middot; \u23F1 ' + dureeLisible(f.duree_sec) : '') +
+          ' &middot; ' + Math.round(f.volume) + ' kg' + '</div>' +
+      '</div>' +
+    '</div>' +
+    (f.note ? '<div class="fil-note">' + String(f.note).replace(/</g,'&lt;') + '</div>' : '') +
+    detail +
+    '<div class="reac-row">' + totaux + boutons + '</div>' +
+  '</div>';
 }
 
 async function reagirDepuisFil(seanceId, signe){
@@ -2927,15 +2967,16 @@ async function syncReminder(){
 // Le pouce atteint mieux le bas de l'ecran que le haut, et le
 // bouton central regroupe les deux gestes du quotidien.
 document.querySelectorAll('.bn-item[data-bn]').forEach(function(item){
-  item.addEventListener('click', function(){
-    const btn = document.querySelector('nav.tabs button[data-view="' + item.dataset.bn + '"]');
-    if(btn) btn.click();
-  });
+  item.addEventListener('click', function(){ allerVue(item.dataset.bn); });
 });
 
 function majBottomNav(){
   const actif = document.querySelector('nav.tabs button.active');
-  const vue = actif ? actif.dataset.view : null;
+  let vue = actif ? actif.dataset.view : null;
+  if(!vue){
+    const ouverte = document.querySelector('.view.active');
+    if(ouverte) vue = ouverte.id.replace('view-', '');
+  }
   document.querySelectorAll('.bn-item[data-bn]').forEach(function(b){
     b.classList.toggle('active', b.dataset.bn === vue);
   });
@@ -2988,7 +3029,18 @@ function fermerActionRapide(){
 
 function allerVue(v){
   const btn = document.querySelector('nav.tabs button[data-view="' + v + '"]');
-  if(btn) btn.click();
+  if(btn){ btn.click(); return; }
+  // "moi" n'est pas un onglet : on l'active a la main
+  nettoyerAdresseProfil();
+  closeBurger();
+  document.querySelectorAll('nav.tabs button').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.view').forEach(function(x){ x.classList.remove('active'); });
+  const vue = document.getElementById('view-' + v);
+  if(vue) vue.classList.add('active');
+  positionNavSlider();
+  majBottomNav();
+  if(v === 'moi') renderHome();
+  window.scrollTo({top:0});
 }
 
 // ---- Menu burger (petits écrans) ----
@@ -3044,11 +3096,12 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('nav-avatar')?.classList.remove('active');
-    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+      document.getElementById('view-'+btn.dataset.view).classList.add('active');
     positionNavSlider();
     if(btn.dataset.view==='accueil') renderHome();
     if(btn.dataset.view==='suivi') renderCompareSelects();
+    if(btn.dataset.view==='moi') renderHome();
+    if(btn.dataset.view==='accueil') chargerFil();
     if(btn.dataset.view==='analyse'){ renderRecordsTab(); renderCorrelations(); }
     if(btn.dataset.view==='amis') chargerAmis();
   });

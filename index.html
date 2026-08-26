@@ -57,7 +57,8 @@
       <button data-view="amis">Amis <span class="tab-badge" id="tab-badge-amis" style="display:none;"></span></button>
     </nav>
     <span class="nav-week" id="nav-week"></span>
-    <button class="nav-avatar" id="nav-avatar" onclick="openSettings()" title="Réglages du compte">💪</button>
+    <button class="nav-avatar" id="nav-avatar" onclick="allerVue('moi')" title="Mon profil">💪</button>
+    <button class="nav-reglages" onclick="openSettings()" title="Réglages" aria-label="Réglages">⚙</button>
     <button class="nav-logout" onclick="signOut()" title="Se déconnecter">⏻</button>
     <button class="nav-burger" id="nav-burger" onclick="toggleBurger()" aria-label="Menu">
       <span></span><span></span><span></span>
@@ -71,6 +72,7 @@
     <button class="burger-item" data-burger-view="analyse">Analyse</button>
     <button class="burger-item" data-burger-view="amis">Amis <span class="tab-badge" id="burger-badge-amis" style="display:none;"></span></button>
     <div class="burger-sep"></div>
+    <button class="burger-item" data-burger-view="moi">Mon profil</button>
     <button class="burger-item burger-settings" onclick="openSettings(); closeBurger();">
       <span id="burger-avatar">💪</span> Réglages du compte
     </button>
@@ -82,6 +84,11 @@
   <div class="view-stack">
   <!-- ACCUEIL -->
   <div class="view active" id="view-accueil">
+    <div class="card" id="fil-actu"></div>
+  </div>
+
+  <!-- MON PROFIL -->
+  <div class="view" id="view-moi">
     <section class="hero">
       <div class="profile-card">
         <div class="profile-top">
@@ -124,11 +131,8 @@
       </div>
     </section>
     <div class="card" id="next-milestone" style="display:none;"></div>
-    <div class="card" id="activite-sociale" style="display:none;"></div>
-    <div class="card" id="fil-amis" style="display:none;"></div>
     <div id="home-reminder"></div>
     <div class="card" id="monthly-summary"></div>
-
     <div id="home-content"></div>
   </div>
 
@@ -637,10 +641,10 @@
 
 <nav id="bottom-nav">
   <button class="bn-item" data-bn="accueil"><span class="bn-ico">🏠</span><span class="bn-lab">Accueil</span></button>
-  <button class="bn-item" data-bn="suivi"><span class="bn-ico">📈</span><span class="bn-lab">Suivi</span></button>
+  <button class="bn-item" data-bn="amis"><span class="bn-ico">👥</span><span class="bn-lab">Amis<span class="bn-badge" id="bn-badge-amis" style="display:none;"></span></span></button>
   <button class="bn-plus" onclick="ouvrirActionRapide()" aria-label="Ajouter">+</button>
   <button class="bn-item" data-bn="performances"><span class="bn-ico">🏋️</span><span class="bn-lab">Perf.</span></button>
-  <button class="bn-item" data-bn="amis"><span class="bn-ico">👥</span><span class="bn-lab">Amis<span class="bn-badge" id="bn-badge-amis" style="display:none;"></span></span></button>
+  <button class="bn-item" data-bn="moi"><span class="bn-ico" id="bn-avatar">💪</span><span class="bn-lab">Profil</span></button>
 </nav>
 
 <div id="action-rapide" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) fermerActionRapide()">
