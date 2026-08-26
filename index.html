@@ -152,6 +152,21 @@
       </div>
 
       <div class="card">
+        <h2>Modèles <button class="help-btn" onclick="toggleHelp('help-modeles')" aria-label="Aide">i</button></h2>
+        <div class="card-body">
+          <p class="block-intro">Enregistre tes séances types une fois, relance-les en un geste.</p>
+          <div class="help-box" id="help-modeles">
+            <strong>À quoi ça sert ?</strong><br>
+            Un modèle est une liste d'exercices nommée (« Push A », « Jambes »). En salle, tu le lances
+            en mode direct : le carnet te guide exercice par exercice, en te rappelant tes charges de la
+            dernière fois. Plus besoin de ressaisir ta liste à chaque séance.
+          </div>
+          <div id="modeles-list"></div>
+        </div>
+        <button class="primary" onclick="startWizard('modele')">Créer un modèle</button>
+      </div>
+
+      <div class="card">
         <h2>Mes séances <button class="help-btn" onclick="toggleHelp('help-seance')" aria-label="Aide">i</button></h2>
         <div class="card-body">
           <p class="block-intro">Enregistre les exercices travaillés, avec le poids et les répétitions de chaque série. Saisie possible sur les 3 derniers jours.</p>
@@ -589,6 +604,36 @@
 <div id="offline-banner">
   <span class="offline-dot"></span>
   Hors ligne — tes modifications ne sont pas enregistrées tant que la connexion n'est pas revenue.
+</div>
+
+<div id="live-screen">
+  <div class="live-head">
+    <button class="live-quit" onclick="quitterLive()" aria-label="Quitter">✕</button>
+    <div class="live-titre">
+      <div class="live-modele" id="live-modele">—</div>
+      <div class="live-chrono" id="live-chrono">00:00</div>
+    </div>
+    <div class="live-progress"><div class="live-progress-fill" id="live-progress"></div></div>
+  </div>
+
+  <div class="live-body" id="live-body"></div>
+
+  <div class="live-repos" id="live-repos" style="display:none;">
+    <div class="live-repos-temps" id="live-repos-temps">00:00</div>
+    <div class="live-repos-label">Repos en cours</div>
+    <button class="ghost" onclick="arreterRepos()">Terminer le repos</button>
+  </div>
+</div>
+
+<div id="reprise-modal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card" style="max-width:400px;">
+    <h3>Séance en cours</h3>
+    <p class="dialog-texte" id="reprise-texte"></p>
+    <div class="modal-actions">
+      <button class="small" onclick="abandonnerLive()">Abandonner</button>
+      <button class="primary" onclick="reprendreLive()">Reprendre</button>
+    </div>
+  </div>
 </div>
 
 <div id="xp-stack"></div>

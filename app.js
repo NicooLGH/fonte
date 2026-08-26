@@ -441,6 +441,8 @@ async function loadAll(){
   safe('récap séance',       renderSeanceRecap);
   safe('accueil',            renderHome);
   safe('liste exercices',    renderExoList);
+  chargerModeles();
+  safe('seance en cours', verifierLiveEnCours);
   safe('sélecteur perf',     renderPerfChartSelect);
   safe('historique perf',    renderPerfHistory);
   safe('semaines perf',      renderPerfWeekSelect);
@@ -481,7 +483,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.1.0';
+const APP_VERSION = 'v3.2.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -732,6 +734,7 @@ let wiz = null; // {type, steps, index, data, editing}
 
 function startWizard(type){
   if(type==='objectifs') wiz = buildObjWizard();
+  else if(type==='modele') wiz = buildModeleWizard();
   else if(type==='suivi')     wiz = buildSuiviWizard();
   else if(type==='exercice')  wiz = buildExoWizard();
   else if(type==='seance')    wiz = buildSeanceWizard();
@@ -928,6 +931,518 @@ function buildSuiviWizard(){
       renderSuiviRecap(); renderSuiviHistory(); renderSuiviChart();
       renderCompareSelects(); renderCorrelations(); renderHome();
       showToast(existing ? 'Releve mis a jour' : 'Releve enregistre');
+    }
+  };
+}
+
+
+
+// ============================================================
+//  SEANCE EN DIRECT
+// ============================================================
+// L'etat est conserve dans le stockage local, pas en memoire :
+// une mise en arriere-plan ou un rechargement ne doit pas faire
+// perdre la seance en cours. Les durees sont calculees a partir
+// d'horodatages absolus, pas d'un compteur qui s'incremente :
+// c'est ce qui permet au chrono de rester juste meme quand le
+// navigateur suspend la page en arriere-plan.
+let live = null;
+let liveTimer = null;
+
+function cleLive(){ return 'fonte-live:' + (currentUser ? currentUser.id : ''); }
+
+function sauverLive(){
+  try{
+    if(live) localStorage.setItem(cleLive(), JSON.stringify(live));
+    else localStorage.removeItem(cleLive());
+  }catch(e){}
+}
+
+function chargerLiveEnCours(){
+  try{
+    const brut = localStorage.getItem(cleLive());
+    if(!brut) return null;
+    const l = JSON.parse(brut);
+    // Au-dela de 12h, on considere que la seance a ete oubliee
+    if(Date.now() - l.debut > 12*3600*1000){ localStorage.removeItem(cleLive()); return null; }
+    return l;
+  }catch(e){ return null; }
+}
+
+// Propose de reprendre si une seance trainait
+function verifierLiveEnCours(){
+  const l = chargerLiveEnCours();
+  if(!l) return;
+  const mins = Math.round((Date.now() - l.debut) / 60000);
+  const delai = mins < 1  ? "a l'instant"
+              : mins === 1 ? 'il y a 1 minute'
+              : mins < 60 ? 'il y a ' + mins + ' minutes'
+              : 'il y a ' + Math.round(mins/60) + ' h';
+  document.getElementById('reprise-texte').textContent =
+    'Une seance \u00AB ' + l.nom + ' \u00BB a ete commencee ' + delai +
+    " et n'a pas ete terminee.";
+  document.getElementById('reprise-modal').style.display = 'flex';
+}
+
+function reprendreLive(){
+  document.getElementById('reprise-modal').style.display = 'none';
+  live = chargerLiveEnCours();
+  if(!live) return;
+  // Un exercice supprime entre-temps laisserait un bloc vide
+  const avant = live.blocs.length;
+  live.blocs = live.blocs.filter(function(b){
+    return exercices.some(function(e){ return e.id === b.exoId; });
+  });
+  if(!live.blocs.length){
+    live = null; sauverLive();
+    showToast('Les exercices de cette seance ont ete supprimes');
+    return;
+  }
+  if(live.blocs.length !== avant){
+    live.index = Math.min(live.index, live.blocs.length - 1);
+    showToast('Un exercice supprime a ete retire de la seance');
+  }
+  sauverLive();
+  ouvrirLive();
+}
+
+function abandonnerLive(){
+  document.getElementById('reprise-modal').style.display = 'none';
+  live = null;
+  sauverLive();
+  showToast('Seance abandonnee');
+}
+
+function demarrerLive(modeleId){
+  const m = modeles.find(function(x){ return x.id === modeleId; });
+  if(!m) return;
+  const valides = m.exercices.filter(function(id){
+    return exercices.some(function(e){ return e.id === id; });
+  });
+  if(!valides.length){ showToast('Ce modele n\'a plus d\'exercice valide'); return; }
+
+  live = {
+    nom: m.nom,
+    debut: Date.now(),
+    reposDebut: null,
+    index: 0,
+    blocs: valides.map(function(id){ return {exoId:id, sets:[], termine:false}; })
+  };
+  sauverLive();
+  ouvrirLive();
+}
+
+function ouvrirLive(){
+  document.getElementById('live-screen').classList.add('actif');
+  document.body.style.overflow = 'hidden';
+  renderLive();
+  if(liveTimer) clearInterval(liveTimer);
+  liveTimer = setInterval(majChronos, 1000);
+  majChronos();
+}
+
+function fermerLive(){
+  document.getElementById('live-screen').classList.remove('actif');
+  document.body.style.overflow = '';
+  if(liveTimer){ clearInterval(liveTimer); liveTimer = null; }
+}
+
+async function quitterLive(){
+  const fait = live ? live.blocs.reduce(function(t,b){ return t + b.sets.length; }, 0) : 0;
+  if(fait === 0){
+    live = null; sauverLive(); fermerLive();
+    return;
+  }
+  const ok = await confirmer('Quitter la seance ?',
+    'Elle restera en cours : tu pourras la reprendre en revenant sur le carnet.\n\n' +
+    'Pour l\'enregistrer definitivement, va au bout et touche « Terminer la seance ».',
+    'Quitter');
+  if(ok){ sauverLive(); fermerLive(); }
+}
+
+// Duree ecoulee, calculee depuis l'horodatage de depart
+function mmss(ms){
+  const t = Math.max(0, Math.floor(ms/1000));
+  const m = Math.floor(t/60), sec = t%60;
+  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function majChronos(){
+  if(!live) return;
+  const c = document.getElementById('live-chrono');
+  if(c) c.textContent = mmss(Date.now() - live.debut);
+  const r = document.getElementById('live-repos-temps');
+  if(r && live.reposDebut) r.textContent = mmss(Date.now() - live.reposDebut);
+}
+
+function lancerRepos(){
+  if(!live) return;
+  live.reposDebut = Date.now();
+  sauverLive();
+  document.getElementById('live-repos').style.display = 'block';
+  majChronos();
+}
+
+function arreterRepos(){
+  if(!live) return;
+  live.reposDebut = null;
+  sauverLive();
+  document.getElementById('live-repos').style.display = 'none';
+}
+
+function renderLive(){
+  if(!live) return;
+  const el = document.getElementById('live-body');
+  document.getElementById('live-modele').textContent = live.nom;
+
+  const total = live.blocs.length;
+  const faits = live.blocs.filter(function(b){ return b.termine; }).length;
+  document.getElementById('live-progress').style.width = Math.round((faits/total)*100) + '%';
+  document.getElementById('live-repos').style.display = live.reposDebut ? 'block' : 'none';
+
+  // Tous les exercices sont faits : on propose d'enregistrer
+  if(live.index >= live.blocs.length || live.blocs.every(function(b){ return b.termine; })){
+    const volume = live.blocs.reduce(function(t,b){
+      return t + b.sets.reduce(function(x,s){ return x + s.poids*s.reps; }, 0);
+    }, 0);
+    el.innerHTML = '<h2 class="live-exo-nom">Seance terminee</h2>' +
+      '<div class="live-exo-pos">' + faits + ' exercice(s) &middot; ' + Math.round(volume) + ' kg de volume</div>' +
+      '<div class="recap">' + live.blocs.filter(function(b){ return b.sets.length; }).map(function(b){
+        const e = exercices.find(function(x){ return x.id === b.exoId; });
+        return '<div class="recap-row"><span class="recap-label">' + (e ? e.name : '&mdash;') +
+          '<br><small style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;">' +
+          b.sets.map(function(s){ return s.poids + '\u00D7' + s.reps; }).join(', ') + '</small></span>' +
+          '<span class="recap-value">' +
+          b.sets.reduce(function(x,s){ return x + s.poids*s.reps; }, 0) +
+          '<span class="unit">kg</span></span></div>';
+      }).join('') + '</div>' +
+      '<div class="live-actions">' +
+        '<button onclick="revenirExercice()">Revenir en arriere</button>' +
+        '<button class="primaire" onclick="terminerLive()">Enregistrer la seance</button>' +
+      '</div>';
+    return;
+  }
+
+  const bloc = live.blocs[live.index];
+  const exo = exercices.find(function(x){ return x.id === bloc.exoId; });
+  const derniere = getExoEntries(bloc.exoId).slice(-1)[0];
+
+  const sets = bloc.sets.length ? bloc.sets : [{poids:'', reps:'', faite:false}];
+  const lignes = sets.map(function(st, i){
+    return '<div class="live-set' + (st.faite ? ' faite' : '') + '">' +
+      '<span class="live-set-num">#' + (i+1) + '</span>' +
+      '<input type="number" step="0.5" inputmode="decimal" class="live-poids" ' +
+        'value="' + (st.poids === '' ? '' : st.poids) + '" placeholder="kg">' +
+      '<span class="sep">\u00D7</span>' +
+      '<input type="number" inputmode="numeric" class="live-reps" ' +
+        'value="' + (st.reps === '' ? '' : st.reps) + '" placeholder="reps">' +
+      '<button class="live-set-ok' + (st.faite ? ' faite' : '') + '" ' +
+        'onclick="validerSerie(' + i + ')" title="Valider la serie">\u2713</button>' +
+    '</div>';
+  }).join('');
+
+  el.innerHTML =
+    '<div class="live-exo-pos">Exercice ' + (live.index+1) + ' sur ' + total + '</div>' +
+    '<h2 class="live-exo-nom">' + (exo ? String(exo.name).replace(/</g,'&lt;') : '&mdash;') + '</h2>' +
+    (derniere
+      ? '<div class="live-derniere"><div class="live-derniere-titre">La derniere fois &middot; ' + derniere.date + '</div>' +
+        '<div class="live-derniere-sets">' + derniere.sets.map(function(s){
+          return '<span>' + s.poids + ' kg \u00D7 ' + s.reps + '</span>';
+        }).join('') + '</div></div>'
+      : '<div class="live-derniere"><div class="live-derniere-titre">Premiere fois sur cet exercice</div></div>') +
+    '<div class="live-sets">' + lignes + '</div>' +
+    '<button class="small" onclick="ajouterSerieLive()">+ Ajouter une serie</button>' +
+    '<div class="live-actions">' +
+      '<button onclick="' + (live.reposDebut ? 'arreterRepos()' : 'lancerRepos()') + '">' +
+        (live.reposDebut ? 'Arreter le repos' : '\u23F1 Lancer le repos') + '</button>' +
+      '<button onclick="passerExercice()">Passer</button>' +
+      '<button onclick="remplacerExercice()">Remplacer</button>' +
+      '<button class="primaire" onclick="exerciceSuivant()">Exercice suivant</button>' +
+    '</div>' +
+    renderRestants();
+}
+
+function renderRestants(){
+  return '<div class="live-restants"><div class="live-restants-titre">Seance</div>' +
+    live.blocs.map(function(b, i){
+      const e = exercices.find(function(x){ return x.id === b.exoId; });
+      const etat = b.termine ? (b.sets.length ? b.sets.length + ' serie(s)' : 'passe')
+                             : (i === live.index ? 'en cours' : 'a venir');
+      return '<div class="live-restant' + (b.termine ? ' fait' : '') + '">' +
+        '<span>' + (b.termine ? '\u2713 ' : '') + (e ? String(e.name).replace(/</g,'&lt;') : '&mdash;') + '</span>' +
+        '<small>' + etat + '</small></div>';
+    }).join('') + '</div>';
+}
+
+// Lit les champs a l'ecran avant toute navigation
+function collecterSeries(){
+  if(!live) return;
+  const bloc = live.blocs[live.index];
+  if(!bloc) return;
+  const lignes = [].slice.call(document.querySelectorAll('#live-body .live-set'));
+  if(!lignes.length) return;
+  bloc.sets = lignes.map(function(l, i){
+    const p = parseFloat(l.querySelector('.live-poids').value);
+    const r = parseInt(l.querySelector('.live-reps').value, 10);
+    const ancienne = bloc.sets[i];
+    return {poids: isNaN(p) ? '' : p, reps: isNaN(r) ? '' : r,
+            faite: ancienne ? ancienne.faite : false};
+  });
+  sauverLive();
+}
+
+function validerSerie(i){
+  collecterSeries();
+  const bloc = live.blocs[live.index];
+  const st = bloc.sets[i];
+  if(st.poids === '' || st.reps === ''){ showToast('Renseigne le poids et les reps'); return; }
+  st.faite = !st.faite;
+  sauverLive();
+  renderLive();
+  // Valider une serie lance naturellement le repos
+  if(st.faite && !live.reposDebut) lancerRepos();
+}
+
+function ajouterSerieLive(){
+  collecterSeries();
+  const bloc = live.blocs[live.index];
+  const derniere = bloc.sets[bloc.sets.length-1];
+  bloc.sets.push({poids: derniere ? derniere.poids : '', reps: derniere ? derniere.reps : '', faite:false});
+  sauverLive();
+  renderLive();
+}
+
+function exerciceSuivant(){
+  collecterSeries();
+  const bloc = live.blocs[live.index];
+  // On ne garde que les series completes
+  bloc.sets = bloc.sets.filter(function(s){ return s.poids !== '' && s.reps !== '' && s.reps > 0; });
+  bloc.termine = true;
+  arreterRepos();
+  const prochain = live.blocs.findIndex(function(b){ return !b.termine; });
+  live.index = prochain === -1 ? live.blocs.length : prochain;
+  sauverLive();
+  renderLive();
+  window.scrollTo({top:0});
+}
+
+// La machine est occupee : on repousse l'exercice a plus tard
+function passerExercice(){
+  collecterSeries();
+  const bloc = live.blocs.splice(live.index, 1)[0];
+  live.blocs.push(bloc);
+  if(live.index >= live.blocs.length) live.index = 0;
+  sauverLive();
+  renderLive();
+  showToast('Exercice repousse a la fin');
+}
+
+async function remplacerExercice(){
+  collecterSeries();
+  const dispo = exercices.filter(function(e){
+    return !live.blocs.some(function(b){ return b.exoId === e.id; });
+  });
+  if(!dispo.length){ showToast('Aucun autre exercice disponible'); return; }
+
+  const el = document.getElementById('live-body');
+  el.innerHTML = '<div class="live-exo-pos">Remplacer par</div>' +
+    '<h2 class="live-exo-nom">Choisis un exercice</h2>' +
+    '<div class="wiz-exo-pick">' + dispo.map(function(e){
+      const last = getExoEntries(e.id).slice(-1)[0];
+      let mx = 0;
+      if(last) last.sets.forEach(function(s){ if(s.poids > mx) mx = s.poids; });
+      return '<button class="wiz-exo-opt" onclick="appliquerRemplacement(\'' + e.id + '\')">' +
+        '<span>' + String(e.name).replace(/</g,'&lt;') + '</span>' +
+        '<small>' + (last ? 'derniere fois : ' + mx + ' kg' : 'jamais fait') + '</small></button>';
+    }).join('') + '</div>' +
+    '<div class="live-actions"><button onclick="renderLive()">Annuler</button></div>';
+}
+
+function appliquerRemplacement(exoId){
+  live.blocs[live.index] = {exoId: exoId, sets: [], termine: false};
+  sauverLive();
+  renderLive();
+  showToast('Exercice remplace');
+}
+
+function revenirExercice(){
+  const dernier = live.blocs.map(function(b, i){ return {b:b, i:i}; })
+    .filter(function(x){ return x.b.termine; }).pop();
+  if(!dernier) return;
+  dernier.b.termine = false;
+  live.index = dernier.i;
+  sauverLive();
+  renderLive();
+}
+
+async function terminerLive(){
+  const blocs = live.blocs
+    .filter(function(b){ return b.sets.length; })
+    .map(function(b){
+      return {exoId: b.exoId, sets: b.sets.map(function(s){ return {poids:s.poids, reps:s.reps}; })};
+    });
+
+  if(!blocs.length){
+    showToast('Aucune serie enregistree');
+    return;
+  }
+
+  const today = todayStr();
+  const dejaLa = performances.find(function(p){ return p.date === today; });
+  if(dejaLa){
+    const ok = await confirmer('Une seance existe deja aujourd\'hui',
+      'Une seule seance par jour est autorisee.\n\nCelle-ci va remplacer la precedente.', 'Remplacer');
+    if(!ok) return;
+    dejaLa.exercices = blocs;
+  } else {
+    performances.push({
+      id: crypto.randomUUID(), weekKey: isoWeekKey(new Date()),
+      date: today, note: null, exercices: blocs
+    });
+  }
+
+  const ok = await save('performances', performances);
+  if(!ok) return;
+
+  live = null;
+  sauverLive();
+  fermerLive();
+  renderSeanceRecap(); renderPerfHistory(); renderPerfWeekSelect();
+  renderPerfChart(); renderHome();
+  showToast('Seance enregistree');
+}
+
+// ============================================================
+//  MODELES DE SEANCE
+// ============================================================
+let modeles = [];
+
+async function chargerModeles(){
+  try{
+    const res = await db.from('modeles').select('*').order('created_at');
+    if(res.error) throw res.error;
+    modeles = (res.data || []).map(function(m){
+      return {id:m.id, nom:m.nom, exercices:m.exercices || []};
+    });
+  }catch(e){ console.error('Modeles indisponibles', e); modeles = []; }
+  renderModeles();
+}
+
+function renderModeles(){
+  const el = document.getElementById('modeles-list');
+  if(!el) return;
+  if(!modeles.length){
+    el.innerHTML = '<p class="recap-empty">Aucun modele. Cree ta premiere seance type pour pouvoir la lancer en direct.</p>';
+    return;
+  }
+  el.innerHTML = modeles.map(function(m){
+    const noms = m.exercices.map(function(id){
+      const e = exercices.find(function(x){ return x.id === id; });
+      return e ? e.name : null;
+    }).filter(Boolean);
+    return '<div class="modele-ligne">' +
+      '<div class="modele-infos">' +
+        '<div class="modele-nom">' + String(m.nom).replace(/</g,'&lt;') + '</div>' +
+        '<div class="modele-detail">' + (noms.length ? noms.join(' &middot; ') : 'aucun exercice valide') + '</div>' +
+      '</div>' +
+      '<div class="modele-actions">' +
+        (noms.length ? '<button class="go" onclick="demarrerLive(\'' + m.id + '\')">Demarrer</button>' : '') +
+        '<button onclick="supprimerModele(\'' + m.id + '\')">Supprimer</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+async function supprimerModele(id){
+  const m = modeles.find(function(x){ return x.id === id; });
+  const ok = await confirmer('Supprimer ce modele ?',
+    (m ? '\u00AB ' + m.nom + ' \u00BB' : 'Ce modele') +
+    ' sera efface. Tes seances deja enregistrees ne sont pas touchees.', 'Supprimer');
+  if(!ok) return;
+  try{
+    const res = await db.from('modeles').delete().eq('id', id);
+    if(res.error) throw res.error;
+    modeles = modeles.filter(function(x){ return x.id !== id; });
+    renderModeles();
+    showToast('Modele supprime');
+  }catch(e){ showToast('Suppression impossible'); }
+}
+
+// ---- Parcours : creation d'un modele ----
+function buildModeleWizard(){
+  if(exercices.length === 0){
+    return {type:'modele', index:0, saveLabel:'Fermer', steps:[{title:'Aucun exercice',
+      render:function(){
+        return '<p class="recap-empty">Cree d\'abord au moins un exercice.</p>' +
+          '<button class="primary" style="width:100%;border-radius:999px;" ' +
+          'onclick="closeWizard(); startWizard(\'exercice\');">Ajouter un exercice</button>';
+      }}], async finish(){}};
+  }
+
+  const data = {nom:'', choisis:[]};
+
+  const nomStep = {
+    title:'Nom du modele',
+    render:function(){
+      return '<div class="wiz-field"><label>Nom</label>' +
+        '<input type="text" id="wiz-input" value="' + data.nom + '" placeholder="ex : Push A">' +
+        '<div class="wiz-hint">Un nom court que tu reconnaitras en salle.</div></div>';
+    },
+    collect:function(){
+      const v = document.getElementById('wiz-input').value.trim().slice(0,40);
+      if(!v){ showToast('Donne un nom au modele'); return false; }
+      data.nom = v;
+    }
+  };
+
+  const exoStep = {
+    title:'Quels exercices ?',
+    render:function(){
+      return '<div class="wiz-exo-pick">' + exercices.map(function(e){
+        const i = data.choisis.indexOf(e.id);
+        return '<button class="wiz-exo-opt' + (i >= 0 ? ' chosen' : '') + '" data-exo="' + e.id + '">' +
+          '<span>' + String(e.name).replace(/</g,'&lt;') + '</span>' +
+          '<small>' + (i >= 0 ? 'n\u00B0 ' + (i+1) : 'ajouter') + '</small></button>';
+      }).join('') + '</div>' +
+      '<div class="wiz-hint">Touche un exercice pour l\'ajouter ou le retirer. L\'ordre suit tes clics.</div>';
+    },
+    after:function(){
+      document.querySelectorAll('.wiz-exo-opt[data-exo]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const id = btn.dataset.exo;
+          const i = data.choisis.indexOf(id);
+          if(i >= 0) data.choisis.splice(i, 1);
+          else data.choisis.push(id);
+          renderWizStep();
+        });
+      });
+    },
+    collect:function(){
+      if(!data.choisis.length){ showToast('Choisis au moins un exercice'); return false; }
+    }
+  };
+
+  const recap = {
+    title:'Recapitulatif',
+    render:function(){
+      return '<div class="recap">' + data.choisis.map(function(id, i){
+        const e = exercices.find(function(x){ return x.id === id; });
+        return '<div class="recap-row"><span class="recap-label">' + (i+1) + '. ' +
+          (e ? String(e.name).replace(/</g,'&lt;') : '&mdash;') + '</span></div>';
+      }).join('') + '</div>';
+    }
+  };
+
+  return {
+    type:'modele', steps:[nomStep, exoStep, recap], index:0, data:data, saveLabel:'Creer le modele',
+    async finish(){
+      try{
+        const ligne = {id: crypto.randomUUID(), user_id: uid(), nom: data.nom, exercices: data.choisis};
+        const res = await db.from('modeles').insert(ligne);
+        if(res.error) throw res.error;
+        modeles.push({id: ligne.id, nom: data.nom, exercices: data.choisis});
+        renderModeles();
+        showToast('Modele cree');
+      }catch(e){ showToast('Creation impossible'); }
     }
   };
 }
