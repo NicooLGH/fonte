@@ -912,7 +912,6 @@ button.primary:disabled:hover{transform:none;box-shadow:none;}
   display:flex;align-items:center;justify-content:center;
 }
 .nav-logout:hover{border-color:rgba(var(--accent-rgb),0.6);color:var(--accent);}
-@media(max-width:900px){ .nav-logout{display:none;} }
 
 /* ---- Aide contextuelle ---- */
 .help-btn{
@@ -1650,7 +1649,6 @@ table tr{border-color:var(--glass-tint-strong);}
   display:flex;align-items:center;justify-content:center;
 }
 .nav-reglages:hover{color:var(--ink);border-color:rgba(255,255,255,0.2);}
-@media(max-width:900px){ .nav-reglages{display:none;} }
 
 /* Une seance d'ami, presentee comme une publication */
 .fil-post{
@@ -1704,25 +1702,28 @@ table tr{border-color:var(--glass-tint-strong);}
 /* Les caracteres ⚙ et ⏻ se rendaient mal selon la police du
    systeme : on passe a de vraies icones vectorielles. */
 .nav-reglages, .nav-logout{
-  width:38px;height:38px;flex-shrink:0;padding:0;
+  width:34px;height:34px;flex-shrink:0;padding:0;
   border-radius:50%;cursor:pointer;
   border:1px solid var(--glass-border);background:var(--glass-tint);
   color:var(--ink-soft);
   display:flex;align-items:center;justify-content:center;
   transition:color .15s ease, border-color .15s ease, background .15s ease;
 }
-.nav-reglages svg, .nav-logout svg{width:18px;height:18px;display:block;}
+.nav-reglages svg, .nav-logout svg{width:16px;height:16px;display:block;}
 .nav-reglages:hover{color:var(--ink);border-color:rgba(255,255,255,0.22);background:var(--glass-tint-strong);}
 .nav-logout:hover{color:var(--accent);border-color:rgba(var(--accent-rgb),0.5);}
 
 /* Sur mobile ils restent accessibles : la barre haute ne
    contient que le logo, il y a la place. */
 @media(max-width:900px){
-  .nav-reglages, .nav-logout{display:flex !important;width:36px;height:36px;}
-  .nav-reglages svg, .nav-logout svg{width:17px;height:17px;}
+  .nav-reglages, .nav-logout{display:flex;width:33px;height:33px;}
+  .nav-reglages svg, .nav-logout svg{width:15px;height:15px;}
   .topbar{gap:8px;padding:8px 10px 8px 16px;}
   .brand{font-size:22px;}
 }
 @media(max-width:360px){
-  .nav-reglages, .nav-logout{width:33px;height:33px;}
+  .nav-reglages, .nav-logout{width:31px;height:31px;}
 }
+
+/* Les trois icones de droite gardent la meme taille */
+.nav-avatar{width:34px;height:34px;font-size:16px;}

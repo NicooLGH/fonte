@@ -485,7 +485,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.4.1';
+const APP_VERSION = 'v3.4.2';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
