@@ -2065,3 +2065,58 @@ table tr{border-color:var(--glass-tint-strong);}
   .nav-notif{display:flex;width:33px;height:33px;}
   .nav-notif svg{width:15px;height:15px;}
 }
+
+/* ============================================================
+   ANNONCES PERSONNALISABLES
+   ============================================================ */
+.annonce{position:relative;padding-left:24px;}
+.annonce.perso{border-width:1px;}
+.annonce-puce{
+  position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:20px 0 0 20px;
+}
+.annonce.info .annonce-puce, .annonce.succes .annonce-puce{background:var(--accent-2);}
+.annonce.alerte .annonce-puce{background:var(--accent);}
+.annonce.epinglee{border-width:2px;}
+.annonce-epingle{
+  display:inline-block;margin-bottom:8px;
+  font-family:var(--font-mono);font-size:10px;letter-spacing:0.08em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+.annonce-ico{margin-right:8px;font-size:17px;}
+.annonce-lien{
+  display:inline-block;margin-top:12px;
+  padding:8px 18px;border-radius:999px;
+  background:var(--glass-tint);border:1px solid var(--glass-border);
+  color:var(--ink);font-family:var(--font-body);font-size:13px;font-weight:600;
+  text-decoration:none;
+}
+.annonce-lien:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ---- Panneau d'administration ---- */
+.adm-grille{margin:6px 0 4px;}
+.adm-apercu-titre{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--ink-soft);
+  margin:22px 0 10px;padding-top:16px;border-top:1px solid var(--hairline);
+}
+.icone-choix{display:flex;gap:5px;flex-wrap:wrap;max-width:280px;}
+.icone-opt{
+  width:34px;height:34px;border-radius:50%;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  font-size:16px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.icone-opt:hover{border-color:var(--accent-2);background:var(--glass-tint-strong);}
+input[type="color"]{
+  width:44px;height:38px;padding:2px;cursor:pointer;
+  border:1px solid var(--glass-border);border-radius:12px;
+  background:var(--glass-tint);
+}
+.adm-etat{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:0.06em;
+  text-transform:uppercase;padding:2px 8px;border-radius:999px;
+}
+.adm-etat.active{color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.12);}
+.adm-etat.retiree{color:var(--ink-soft);background:var(--glass-tint);}
+.adm-etat.expiree{color:var(--hazard);background:rgba(255,212,0,0.1);}

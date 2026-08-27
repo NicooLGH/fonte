@@ -127,11 +127,15 @@ db.auth.onAuthStateChange((event, session) => {
     currentUser = session.user;
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app-root').style.display = 'block';
+    // La barre basse ne doit pas s'afficher par-dessus l'ecran
+    // de connexion : elle n'a de sens qu'une fois connecte.
+    document.getElementById('bottom-nav').style.display = '';
     loadAll();
   } else if(event === 'SIGNED_OUT'){
     currentUser = null;
     document.getElementById('auth-screen').style.display = 'flex';
     document.getElementById('app-root').style.display = 'none';
+    document.getElementById('bottom-nav').style.display = 'none';
   }
 });
 
@@ -499,7 +503,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.8.0';
+const APP_VERSION = 'v3.8.1';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -1793,11 +1797,39 @@ function dateRelative(iso){
 // ============================================================
 //  ANNONCES ET ADMINISTRATION
 // ============================================================
-// L'administrateur peut publier et notifier. Il n'a aucun acces
-// aux donnees des membres : les politiques RLS des autres tables
-// ne lui accordent rien de plus qu'a n'importe qui.
 let estAdmin = false;
-let admTonChoisi = 'info';
+const adm = {ton:'info', couleur:null, retirable:true, epinglee:false};
+const ICONES = ['\u{1F4E2}','\u{1F389}','\u26A0\uFE0F','\u{1F525}','\u2728','\u{1F4AA}',
+                '\u{1F6E0}\uFE0F','\u{1F381}','\u{1F4C5}','\u2764\uFE0F'];
+
+// ---- Rendu d'une annonce, partage entre l'accueil et l'apercu ----
+function htmlAnnonce(a, apercu){
+  const style = a.couleur
+    ? ' style="border-color:' + a.couleur + '99;background:' + a.couleur + '1a;"'
+    : '';
+  const puce = a.couleur
+    ? '<span class="annonce-puce" style="background:' + a.couleur + '"></span>'
+    : '';
+  const croix = (!apercu && a.retirable !== false)
+    ? '<button class="annonce-x" onclick="masquerAnnonce(\'' + a.id + '\')" aria-label="Masquer">\u2715</button>'
+    : '';
+  const lien = (a.lien_texte && a.lien_url)
+    ? '<a class="annonce-lien" href="' + String(a.lien_url).replace(/"/g,'&quot;') +
+      '" target="_blank" rel="noopener">' + String(a.lien_texte).replace(/</g,'&lt;') + '</a>'
+    : '';
+
+  return '<div class="annonce ' + (a.couleur ? 'perso' : (a.ton || 'info')) +
+      (a.epinglee ? ' epinglee' : '') + '"' + style + '>' +
+    puce + croix +
+    (a.epinglee ? '<span class="annonce-epingle">\u{1F4CC} Epinglee</span>' : '') +
+    '<div class="annonce-titre">' +
+      (a.icone ? '<span class="annonce-ico">' + a.icone + '</span>' : '') +
+      String(a.titre || '').replace(/</g,'&lt;') + '</div>' +
+    '<div class="annonce-corps">' +
+      String(a.corps || '').replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</div>' +
+    lien +
+  '</div>';
+}
 
 async function chargerAnnonces(){
   const el = document.getElementById('annonces');
@@ -1811,17 +1843,17 @@ async function chargerAnnonces(){
 
   let masquees = [];
   try{ masquees = JSON.parse(localStorage.getItem('fonte-annonces-vues') || '[]'); }catch(e){}
-  const visibles = liste.filter(function(a){ return masquees.indexOf(a.id) === -1; });
 
-  el.innerHTML = visibles.map(function(a){
-    return '<div class="annonce ' + a.ton + '">' +
-      '<button class="annonce-x" onclick="masquerAnnonce(\'' + a.id + '\')" aria-label="Masquer">\u2715</button>' +
-      '<div class="annonce-titre">' + String(a.titre).replace(/</g,'&lt;') + '</div>' +
-      '<div class="annonce-corps">' + String(a.corps).replace(/</g,'&lt;') + '</div>' +
-    '</div>';
-  }).join('');
+  // Une annonce non retirable ne peut pas etre masquee, meme si
+  // elle l'avait ete avant que l'administrateur ne change l'option.
+  const visibles = liste.filter(function(a){
+    return a.retirable === false || masquees.indexOf(a.id) === -1;
+  }).sort(function(x, y){
+    return (y.epinglee ? 1 : 0) - (x.epinglee ? 1 : 0);
+  });
 
-  if(estAdmin) renderAdmListe(liste);
+  el.innerHTML = visibles.map(function(a){ return htmlAnnonce(a, false); }).join('');
+  if(estAdmin) chargerAdmListe();
 }
 
 function masquerAnnonce(id){
@@ -1832,27 +1864,91 @@ function masquerAnnonce(id){
   chargerAnnonces();
 }
 
+// ---- Reglages de l'administrateur ----
 function admTon(t){
-  admTonChoisi = t;
+  adm.ton = t; adm.couleur = null;
   document.querySelectorAll('.theme-btn[data-ton]').forEach(function(b){
     b.classList.toggle('active', b.dataset.ton === t);
   });
+  majApercu();
+}
+function admCouleurOn(){
+  adm.couleur = document.getElementById('adm-couleur').value;
+  document.querySelectorAll('.theme-btn[data-ton]').forEach(function(b){
+    b.classList.remove('active');
+  });
+  majApercu();
+}
+function admCouleurOff(){
+  adm.couleur = null;
+  admTon(adm.ton || 'info');
+}
+function admRetirable(v){
+  adm.retirable = v;
+  document.querySelectorAll('.theme-btn[data-ret]').forEach(function(b){
+    b.classList.toggle('active', (b.dataset.ret === 'oui') === v);
+  });
+  majApercu();
+}
+function admEpinglee(v){
+  adm.epinglee = v;
+  document.querySelectorAll('.theme-btn[data-epi]').forEach(function(b){
+    b.classList.toggle('active', (b.dataset.epi === 'oui') === v);
+  });
+  majApercu();
+}
+
+function renderIconesChoix(){
+  const el = document.getElementById('adm-icones');
+  if(!el) return;
+  el.innerHTML = ICONES.map(function(i){
+    return '<button class="icone-opt" onclick="choisirIcone(\'' + i + '\')">' + i + '</button>';
+  }).join('');
+}
+function choisirIcone(i){
+  const champ = document.getElementById('adm-icone');
+  champ.value = (champ.value === i) ? '' : i;
+  majApercu();
+}
+
+// L'apercu evite de publier pour decouvrir le rendu
+function majApercu(){
+  const el = document.getElementById('adm-apercu');
+  if(!el) return;
+  el.innerHTML = htmlAnnonce({
+    id:'apercu',
+    titre: document.getElementById('adm-titre').value || 'Titre de ton annonce',
+    corps: document.getElementById('adm-corps').value || 'Le message apparaitra ici.',
+    ton: adm.ton, couleur: adm.couleur,
+    icone: document.getElementById('adm-icone').value,
+    epinglee: adm.epinglee, retirable: adm.retirable,
+    lien_texte: document.getElementById('adm-lien-texte').value,
+    lien_url: document.getElementById('adm-lien-url').value
+  }, true);
 }
 
 async function publierAnnonce(){
   const titre = document.getElementById('adm-titre').value.trim();
   const corps = document.getElementById('adm-corps').value.trim();
-  const jours = parseInt(document.getElementById('adm-jours').value, 10) || 7;
+  const jours = parseInt(document.getElementById('adm-jours').value, 10);
   const notifier = document.getElementById('adm-notifier').checked;
   if(titre.length < 3 || corps.length < 3){ showToast('Titre et message obligatoires'); return; }
+
   try{
     const res = await db.rpc('publier_annonce', {
-      p_titre: titre, p_corps: corps, p_ton: admTonChoisi,
-      p_jours: jours, p_notifier: notifier
+      p_titre: titre, p_corps: corps, p_ton: adm.ton,
+      p_jours: isNaN(jours) ? 7 : jours, p_notifier: notifier,
+      p_retirable: adm.retirable, p_epinglee: adm.epinglee,
+      p_couleur: adm.couleur,
+      p_icone: document.getElementById('adm-icone').value.trim() || null,
+      p_lien_texte: document.getElementById('adm-lien-texte').value.trim() || null,
+      p_lien_url: document.getElementById('adm-lien-url').value.trim() || null
     });
     if(res.error) throw res.error;
-    document.getElementById('adm-titre').value = '';
-    document.getElementById('adm-corps').value = '';
+    ['adm-titre','adm-corps','adm-icone','adm-lien-texte','adm-lien-url'].forEach(function(id){
+      document.getElementById(id).value = '';
+    });
+    majApercu();
     showToast('Annonce publiee');
     chargerAnnonces();
     chargerNotifs();
@@ -1876,32 +1972,52 @@ async function diffuserNotif(){
   }catch(e){ showToast(e.message || 'Envoi impossible'); }
 }
 
-function renderAdmListe(liste){
+// La liste passe par une fonction dediee : la politique de
+// lecture masque les annonces retirees, l'administrateur ne
+// verrait donc plus ce qu'il vient de desactiver.
+async function chargerAdmListe(){
   const el = document.getElementById('adm-liste');
   if(!el) return;
-  if(!liste.length){ el.innerHTML = '<p class="recap-empty">Aucune annonce en cours.</p>'; return; }
+  let liste = [];
+  try{
+    const res = await db.rpc('toutes_annonces');
+    if(res.error) throw res.error;
+    liste = res.data || [];
+  }catch(e){
+    el.innerHTML = '<p class="recap-empty">Liste indisponible.</p>';
+    return;
+  }
+  if(!liste.length){ el.innerHTML = '<p class="recap-empty">Aucune annonce.</p>'; return; }
+
   el.innerHTML = liste.map(function(a){
+    const expiree = a.expire_le && new Date(a.expire_le) < new Date();
+    const etat = !a.active ? 'retiree' : (expiree ? 'expiree' : 'active');
     return '<div class="person-row">' +
       '<div class="person-info">' +
-        '<div class="person-name">' + String(a.titre).replace(/</g,'&lt;') + '</div>' +
-        '<div class="person-meta">' + a.ton + ' &middot; ' + dateRelative(a.created_at) + '</div>' +
+        '<div class="person-name">' + (a.icone ? a.icone + ' ' : '') +
+          String(a.titre).replace(/</g,'&lt;') + '</div>' +
+        '<div class="person-meta"><span class="adm-etat ' + etat + '">' + etat + '</span> &middot; ' +
+          dateRelative(a.created_at) +
+          (a.epinglee ? ' &middot; epinglee' : '') +
+          (a.retirable === false ? ' &middot; non retirable' : '') + '</div>' +
       '</div>' +
       '<div class="person-actions">' +
-        '<button onclick="retirerAnnonce(\'' + a.id + '\')">Retirer</button>' +
+        (a.active ? '<button onclick="retirerAnnonce(\'' + a.id + '\')">Retirer</button>' : '') +
       '</div></div>';
   }).join('');
 }
 
 async function retirerAnnonce(id){
   const ok = await confirmer('Retirer cette annonce ?',
-    'Elle ne sera plus affichee. Les notifications deja envoyees restent.', 'Retirer');
+    "Elle ne sera plus affichee. Les notifications deja envoyees restent.", 'Retirer');
   if(!ok) return;
   try{
-    const res = await db.from('annonces').update({active:false}).eq('id', id);
+    const res = await db.rpc('retirer_annonce', {p_id: id});
     if(res.error) throw res.error;
     showToast('Annonce retiree');
     chargerAnnonces();
-  }catch(e){ showToast('Action impossible'); }
+    chargerAdmListe();
+  }catch(e){ showToast(e.message || 'Action impossible'); }
 }
 
 // ============================================================
@@ -4058,6 +4174,7 @@ function allerVue(v){
   positionNavSlider();
   majBottomNav();
   if(v === 'moi') renderHome();
+  if(v === 'admin'){ renderIconesChoix(); admRetirable(true); majApercu(); chargerAdmListe(); }
   window.scrollTo({top:0});
 }
 

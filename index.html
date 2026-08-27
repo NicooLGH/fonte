@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FONTE">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=380">
+<link rel="stylesheet" href="style.css?v=381">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -436,41 +436,100 @@
   <div class="view" id="view-admin">
     <div class="card">
       <h2>Publier une annonce</h2>
-      <p class="block-intro">Visible en tête de l'accueil pour tous les membres, et envoyée en notification si tu le souhaites.</p>
+      <p class="block-intro">Visible en tête de l'accueil pour tous les membres.</p>
+
       <div class="field"><label>Titre</label>
-        <input type="text" id="adm-titre" maxlength="80" placeholder="ex : Nouvelle version disponible"></div>
+        <input type="text" id="adm-titre" maxlength="80" placeholder="ex : Nouvelle version disponible"
+               oninput="majApercu()"></div>
       <div class="field"><label>Message</label>
-        <textarea id="adm-corps" class="wiz-textarea" rows="3" maxlength="400"
-                  placeholder="Le détail de ton annonce."></textarea></div>
-      <div class="settings-row">
-        <div class="settings-label"><strong>Ton</strong><span>Change la couleur du bandeau.</span></div>
-        <div class="settings-control">
-          <div class="theme-toggle">
-            <button class="theme-btn active" data-ton="info" onclick="admTon('info')">Info</button>
-            <button class="theme-btn" data-ton="succes" onclick="admTon('succes')">Succès</button>
-            <button class="theme-btn" data-ton="alerte" onclick="admTon('alerte')">Alerte</button>
+        <textarea id="adm-corps" class="wiz-textarea" rows="4" maxlength="600"
+                  placeholder="Le détail de ton annonce." oninput="majApercu()"></textarea></div>
+
+      <div class="adm-grille">
+        <div class="settings-row">
+          <div class="settings-label"><strong>Style</strong><span>Couleur de base du bandeau.</span></div>
+          <div class="settings-control">
+            <div class="theme-toggle">
+              <button class="theme-btn active" data-ton="info" onclick="admTon('info')">Info</button>
+              <button class="theme-btn" data-ton="succes" onclick="admTon('succes')">Succès</button>
+              <button class="theme-btn" data-ton="alerte" onclick="admTon('alerte')">Alerte</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Couleur personnalisée</strong>
+            <span>Remplace le style ci-dessus.</span></div>
+          <div class="settings-control">
+            <input type="color" id="adm-couleur" value="#FF4B2B" oninput="admCouleurOn()">
+            <button class="small" onclick="admCouleurOff()">Aucune</button>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Icône</strong><span>Un emoji, facultatif.</span></div>
+          <div class="settings-control">
+            <div class="icone-choix" id="adm-icones"></div>
+            <input type="text" id="adm-icone" maxlength="4" placeholder="—" oninput="majApercu()"
+                   style="min-width:70px;text-align:center;">
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Retirable</strong>
+            <span>Si non, les membres ne peuvent pas la masquer.</span></div>
+          <div class="settings-control">
+            <div class="theme-toggle">
+              <button class="theme-btn active" data-ret="oui" onclick="admRetirable(true)">Oui</button>
+              <button class="theme-btn" data-ret="non" onclick="admRetirable(false)">Non</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Épinglée</strong>
+            <span>Toujours affichée en premier.</span></div>
+          <div class="settings-control">
+            <div class="theme-toggle">
+              <button class="theme-btn" data-epi="oui" onclick="admEpinglee(true)">Oui</button>
+              <button class="theme-btn active" data-epi="non" onclick="admEpinglee(false)">Non</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Bouton</strong><span>Un lien cliquable, facultatif.</span></div>
+          <div class="settings-control">
+            <input type="text" id="adm-lien-texte" maxlength="30" placeholder="Texte" oninput="majApercu()">
+            <input type="text" id="adm-lien-url" maxlength="300" placeholder="https://…" oninput="majApercu()">
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Durée</strong><span>Jours d'affichage. 0 = sans fin.</span></div>
+          <div class="settings-control">
+            <input type="number" id="adm-jours" value="7" min="0" max="365" style="min-width:90px;">
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label"><strong>Notifier</strong><span>Envoyer aussi une notification à tous.</span></div>
+          <div class="settings-control">
+            <label class="wiz-check" style="padding:9px 14px;">
+              <input type="checkbox" id="adm-notifier" class="goal-check" checked> Oui
+            </label>
           </div>
         </div>
       </div>
-      <div class="settings-row">
-        <div class="settings-label"><strong>Durée</strong><span>Nombre de jours d'affichage.</span></div>
-        <div class="settings-control">
-          <input type="number" id="adm-jours" value="7" min="1" max="90" style="min-width:90px;">
-        </div>
-      </div>
-      <div class="settings-row">
-        <div class="settings-label"><strong>Notifier</strong><span>Envoyer aussi une notification à tous.</span></div>
-        <div class="settings-control">
-          <label class="wiz-check" style="padding:9px 14px;">
-            <input type="checkbox" id="adm-notifier" class="goal-check" checked> Oui
-          </label>
-        </div>
-      </div>
-      <button class="primary" onclick="publierAnnonce()">Publier</button>
+
+      <div class="adm-apercu-titre">Aperçu</div>
+      <div id="adm-apercu"></div>
+
+      <button class="primary" onclick="publierAnnonce()" style="margin-top:16px;">Publier</button>
     </div>
 
     <div class="card">
-      <h2>Annonces en cours</h2>
+      <h2>Annonces</h2>
       <div id="adm-liste"></div>
     </div>
 
@@ -781,7 +840,7 @@
   </div>
 </div>
 
-<nav id="bottom-nav">
+<nav id="bottom-nav" style="display:none;">
   <button class="bn-item" data-bn="accueil"><span class="bn-ico">🏠</span><span class="bn-lab">Accueil</span></button>
   <button class="bn-item" data-bn="amis"><span class="bn-ico">👥</span><span class="bn-lab">Amis<span class="bn-badge" id="bn-badge-amis" style="display:none;"></span></span></button>
   <button class="bn-plus" onclick="ouvrirActionRapide()" aria-label="Ajouter">+</button>
@@ -879,6 +938,6 @@
 
 
 
-<script src="app.js?v=380"></script>
+<script src="app.js?v=381"></script>
 </body>
 </html>
