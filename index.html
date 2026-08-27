@@ -6,7 +6,13 @@
 <title>FONTE — Carnet de suivi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<link rel="stylesheet" href="style.css?v=372">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0E0F11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FONTE">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css?v=380">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -58,6 +64,14 @@
     </nav>
     <span class="nav-week" id="nav-week"></span>
     <button class="nav-avatar" id="nav-avatar" onclick="allerVue('moi')" title="Mon profil">💪</button>
+    <button class="nav-notif" onclick="ouvrirNotifs()" title="Notifications" aria-label="Notifications">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      <span class="notif-pastille" id="notif-pastille" style="display:none;"></span>
+    </button>
     <button class="nav-reglages" onclick="openSettings()" title="Réglages" aria-label="Réglages">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -97,6 +111,7 @@
   <div class="view-stack">
   <!-- ACCUEIL -->
   <div class="view active" id="view-accueil">
+    <div id="annonces"></div>
     <div id="bilan-banniere"></div>
     <div class="card" id="fil-actu"></div>
   </div>
@@ -418,6 +433,58 @@
     <div id="profil-content"></div>
   </div>
 
+  <div class="view" id="view-admin">
+    <div class="card">
+      <h2>Publier une annonce</h2>
+      <p class="block-intro">Visible en tête de l'accueil pour tous les membres, et envoyée en notification si tu le souhaites.</p>
+      <div class="field"><label>Titre</label>
+        <input type="text" id="adm-titre" maxlength="80" placeholder="ex : Nouvelle version disponible"></div>
+      <div class="field"><label>Message</label>
+        <textarea id="adm-corps" class="wiz-textarea" rows="3" maxlength="400"
+                  placeholder="Le détail de ton annonce."></textarea></div>
+      <div class="settings-row">
+        <div class="settings-label"><strong>Ton</strong><span>Change la couleur du bandeau.</span></div>
+        <div class="settings-control">
+          <div class="theme-toggle">
+            <button class="theme-btn active" data-ton="info" onclick="admTon('info')">Info</button>
+            <button class="theme-btn" data-ton="succes" onclick="admTon('succes')">Succès</button>
+            <button class="theme-btn" data-ton="alerte" onclick="admTon('alerte')">Alerte</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label"><strong>Durée</strong><span>Nombre de jours d'affichage.</span></div>
+        <div class="settings-control">
+          <input type="number" id="adm-jours" value="7" min="1" max="90" style="min-width:90px;">
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label"><strong>Notifier</strong><span>Envoyer aussi une notification à tous.</span></div>
+        <div class="settings-control">
+          <label class="wiz-check" style="padding:9px 14px;">
+            <input type="checkbox" id="adm-notifier" class="goal-check" checked> Oui
+          </label>
+        </div>
+      </div>
+      <button class="primary" onclick="publierAnnonce()">Publier</button>
+    </div>
+
+    <div class="card">
+      <h2>Annonces en cours</h2>
+      <div id="adm-liste"></div>
+    </div>
+
+    <div class="card">
+      <h2>Notification seule</h2>
+      <p class="block-intro">Envoie une notification à tous les membres, sans créer d'annonce.</p>
+      <div class="field"><label>Titre</label>
+        <input type="text" id="adm-ntitre" maxlength="80" placeholder="ex : Rappel"></div>
+      <div class="field"><label>Message</label>
+        <textarea id="adm-ncorps" class="wiz-textarea" rows="2" maxlength="200"></textarea></div>
+      <button class="ghost" onclick="diffuserNotif()">Envoyer à tous</button>
+    </div>
+  </div>
+
   <div class="view" id="view-reglages">
     <div class="card">
       <h2>Profil</h2>
@@ -515,6 +582,31 @@
           <button class="ghost" onclick="signOut()">Se déconnecter</button>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Application</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Installer FONTE</strong>
+          <span>S'ajoute à ton écran d'accueil et s'ouvre en plein écran, sans barre de navigateur.</span>
+        </div>
+        <div class="settings-control" id="install-ligne"></div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">
+          <strong>Notifications</strong>
+          <span>Demandes d'ami, réactions, encouragements et annonces.<br>
+            Elles arrivent tant que le carnet est ouvert ou en arrière-plan.</span>
+        </div>
+        <div class="settings-control" id="notif-ligne"></div>
+      </div>
+    </div>
+
+    <div class="card" id="admin-acces" style="display:none;">
+      <h2>Administration</h2>
+      <p class="block-intro">Publier des annonces et envoyer des notifications à tous les membres.</p>
+      <button class="primary" onclick="allerVue('admin')">Ouvrir l'administration</button>
     </div>
 
     <div class="card">
@@ -725,6 +817,16 @@
   </div>
 </div>
 
+<div id="notif-modal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) fermerNotifs()">
+  <div class="modal-card liste-card">
+    <div class="liste-tete">
+      <h3>Notifications</h3>
+      <button class="wiz-close" onclick="fermerNotifs()" aria-label="Fermer">✕</button>
+    </div>
+    <div class="liste-corps" id="notif-corps"></div>
+  </div>
+</div>
+
 <div id="xp-stack"></div>
 <div id="toast"></div>
 
@@ -777,6 +879,6 @@
 
 
 
-<script src="app.js?v=372"></script>
+<script src="app.js?v=380"></script>
 </body>
 </html>

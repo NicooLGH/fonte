@@ -343,7 +343,7 @@ async function loadAll(){
   try{
     const uid = currentUser.id;
     const [rProfile, rExos, rSeances, rSeries, rSuivi, rObj, rRemind] = await Promise.all([
-      db.from('profiles').select('pseudo, avatar, onboarded, partage_seances, partage_presence').eq('id', uid).maybeSingle(),
+      db.from('profiles').select('pseudo, avatar, onboarded, partage_seances, partage_presence, role').eq('id', uid).maybeSingle(),
       db.from('exercices').select('*').order('created_at'),
       db.from('seances').select('*'),
       db.from('series').select('*').order('position'),
@@ -361,6 +361,7 @@ async function loadAll(){
     onboarded = rProfile.data?.onboarded ?? false;
     partageSeances = rProfile.data?.partage_seances ?? false;
     partagePresence = rProfile.data?.partage_presence ?? true;
+    estAdmin = (rProfile.data?.role === 'admin');
 
     exercices = (rExos.data||[]).map(e=>({
       id: e.id, name: e.name,
@@ -432,11 +433,14 @@ async function loadAll(){
     catch(e){ console.error('Affichage en échec :', label, e); }
   };
 
-  safe('en-têtes de semaine', ()=>{
+  safe('en-têtes de semaine', function(){
+    // `mensu-week-info` n'existe plus depuis la fusion des pages :
+    // l'erreur interrompait la suite, dont le jour de rappel.
     const wk = isoWeekKey(new Date());
-    document.getElementById('mensu-week-info').textContent = `Semaine en cours : ${weekLabel(wk)}`;
-    document.getElementById('perf-week-info').textContent = `Semaine en cours : ${weekLabel(wk)}`;
-    document.getElementById('reminder-day-select').value = reminderSettings.day || '';
+    const perf = document.getElementById('perf-week-info');
+    if(perf) perf.textContent = 'Semaine en cours : ' + weekLabel(wk);
+    const rap = document.getElementById('reminder-day-select');
+    if(rap) rap.value = reminderSettings.day || '';
   });
 
   safe('récap objectifs',    renderObjRecap);
@@ -457,6 +461,10 @@ async function loadAll(){
   if(selEq) selEq.addEventListener('change', renderEquilibre);
   const selSuivi = document.getElementById('suivi-field-select');
   if(selSuivi) selSuivi.addEventListener('change', renderSuiviChart);
+  safe('pwa', initPWA);
+  safe('annonces', chargerAnnonces);
+  chargerNotifs();
+  safe('admin', majAccesAdmin);
   safe('bilan', renderBilanBanniere);
   safe('presence', demarrerPresence);
   safe('nav basse', majBottomNav);
@@ -491,7 +499,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.7.2';
+const APP_VERSION = 'v3.8.0';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -689,12 +697,23 @@ function openSettings(){
   renderSettings();
 }
 
+// Le lien vers l'administration n'apparait que pour un admin.
+// Ce n'est pas une protection : c'est la base qui refuse les
+// ecritures aux autres, quoi qu'on affiche.
+function majAccesAdmin(){
+  const el = document.getElementById('admin-acces');
+  if(el) el.style.display = estAdmin ? 'block' : 'none';
+}
+
 function renderSettings(){
   document.getElementById('settings-pseudo').value = pseudo || '';
   document.getElementById('settings-email').textContent = currentUser ? currentUser.email : '—';
   renderAvatarPicker('settings-avatar-picker', avatar, saveAvatar);
   renderPartageBtns();
   renderPresenceBtns();
+  majBoutonInstall();
+  majBoutonNotifs();
+  majAccesAdmin();
   document.querySelectorAll('.theme-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.themeValue===themePref);
   });
@@ -1593,6 +1612,298 @@ function buildModeleWizard(){
 }
 
 
+
+// ============================================================
+//  APPLICATION INSTALLABLE ET NOTIFICATIONS
+// ============================================================
+// Precision importante : les notifications ci-dessous sont
+// LOCALES. Elles s'affichent tant que le carnet est ouvert ou
+// en arriere-plan. Les notifications recues application fermee
+// demandent un serveur d'envoi (Web Push), qui reste a faire.
+let swRegistration = null;
+let promptInstall = null;
+
+function initPWA(){
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js')
+      .then(function(r){ swRegistration = r; })
+      .catch(function(e){ console.warn('Service worker non enregistre', e); });
+  }
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    promptInstall = e;
+    majBoutonInstall();
+  });
+  window.addEventListener('appinstalled', function(){
+    promptInstall = null;
+    majBoutonInstall();
+    showToast('FONTE est installe');
+  });
+  majBoutonInstall();
+}
+
+function estInstallee(){
+  return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+}
+
+function majBoutonInstall(){
+  const ligne = document.getElementById('install-ligne');
+  if(!ligne) return;
+  if(estInstallee()){
+    ligne.innerHTML = '<span class="etat-ok">Application deja installee</span>';
+  } else if(promptInstall){
+    ligne.innerHTML = '<button class="primary" onclick="installer()">Installer l\'application</button>';
+  } else {
+    ligne.innerHTML = '<span class="wiz-hint">Sur iPhone : bouton Partager, puis ' +
+      '\u00AB Sur l\'ecran d\'accueil \u00BB. Sur Android, le navigateur proposera l\'installation.</span>';
+  }
+}
+
+async function installer(){
+  if(!promptInstall) return;
+  promptInstall.prompt();
+  try{ await promptInstall.userChoice; }catch(e){}
+  promptInstall = null;
+  majBoutonInstall();
+}
+
+// ---- Permission ----
+function etatNotifs(){
+  if(!('Notification' in window)) return 'indisponible';
+  return Notification.permission;   // default | granted | denied
+}
+
+async function demanderNotifs(){
+  if(!('Notification' in window)){
+    showToast('Ton navigateur ne gere pas les notifications');
+    return;
+  }
+  const r = await Notification.requestPermission();
+  majBoutonNotifs();
+  if(r === 'granted') notifierLocal('Notifications activees', 'Tu seras prevenu ici meme.');
+  else if(r === 'denied') showToast('Notifications refusees — a reactiver dans ton navigateur');
+}
+
+function majBoutonNotifs(){
+  const ligne = document.getElementById('notif-ligne');
+  if(!ligne) return;
+  const e = etatNotifs();
+  if(e === 'granted') ligne.innerHTML = '<span class="etat-ok">Notifications activees</span>';
+  else if(e === 'denied') ligne.innerHTML = '<span class="wiz-hint">Refusees. Reactive-les dans les reglages de ton navigateur.</span>';
+  else if(e === 'indisponible') ligne.innerHTML = '<span class="wiz-hint">Non gerees par ce navigateur.</span>';
+  else ligne.innerHTML = '<button class="primary" onclick="demanderNotifs()">Activer les notifications</button>';
+}
+
+// Affiche une notification systeme si c'est autorise
+function notifierLocal(titre, corps, tag){
+  if(etatNotifs() !== 'granted') return;
+  if(swRegistration && swRegistration.active){
+    swRegistration.active.postMessage({type:'notif', titre:titre, corps:corps, tag:tag});
+  } else {
+    try{ new Notification(titre, {body:corps, icon:'icon-192.png', tag:tag}); }catch(e){}
+  }
+}
+
+// ============================================================
+//  CENTRE DE NOTIFICATIONS
+// ============================================================
+let notifs = [];
+
+async function chargerNotifs(){
+  try{
+    const res = await db.rpc('mes_notifications');
+    if(res.error) throw res.error;
+    notifs = res.data || [];
+  }catch(e){ console.error('Notifications indisponibles', e); return; }
+  majPastilleNotifs();
+  signalerNouvelles();
+}
+
+function cleNotifVue(){ return 'fonte-notif-vue:' + (currentUser ? currentUser.id : ''); }
+
+// Une notification systeme pour ce qui est arrive depuis la
+// derniere visite, sans rejouer tout l'historique.
+function signalerNouvelles(){
+  let vu = 0;
+  try{ vu = parseInt(localStorage.getItem(cleNotifVue()) || '0', 10); }catch(e){}
+  const neuves = notifs.filter(function(n){
+    return !n.lue && new Date(n.date).getTime() > vu;
+  });
+  if(neuves.length === 1){
+    notifierLocal(neuves[0].titre, neuves[0].corps || '', 'n-' + neuves[0].id);
+  } else if(neuves.length > 1){
+    notifierLocal('FONTE', neuves.length + ' nouvelles notifications', 'n-groupe');
+  }
+  if(neuves.length){
+    try{ localStorage.setItem(cleNotifVue(), String(Date.now())); }catch(e){}
+  }
+}
+
+function majPastilleNotifs(){
+  const n = notifs.filter(function(x){ return !x.lue; }).length;
+  const p = document.getElementById('notif-pastille');
+  if(p){ p.textContent = n > 9 ? '9+' : n; p.style.display = n ? 'flex' : 'none'; }
+}
+
+function ouvrirNotifs(){
+  const el = document.getElementById('notif-corps');
+  if(!notifs.length){
+    el.innerHTML = '<p class="recap-empty">Aucune notification.</p>';
+  } else {
+    el.innerHTML = notifs.map(function(n){
+      return '<div class="notif-item' + (n.lue ? '' : ' neuve') + '">' +
+        '<div class="notif-titre">' + String(n.titre).replace(/</g,'&lt;') + '</div>' +
+        (n.corps ? '<div class="notif-corps">' + String(n.corps).replace(/</g,'&lt;') + '</div>' : '') +
+        '<div class="notif-date">' + dateRelative(n.date) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('notif-modal').style.display = 'flex';
+  marquerNotifsLues();
+}
+
+function fermerNotifs(){
+  document.getElementById('notif-modal').style.display = 'none';
+}
+
+async function marquerNotifsLues(){
+  if(!notifs.some(function(n){ return !n.lue; })) return;
+  try{
+    await db.rpc('marquer_notifs_lues');
+    notifs.forEach(function(n){ n.lue = true; });
+    majPastilleNotifs();
+  }catch(e){}
+}
+
+function dateRelative(iso){
+  const sec = Math.floor((Date.now() - new Date(iso).getTime())/1000);
+  if(sec < 60) return "a l'instant";
+  const m = Math.floor(sec/60);
+  if(m < 60) return 'il y a ' + m + ' min';
+  const h = Math.floor(m/60);
+  if(h < 24) return 'il y a ' + h + ' h';
+  const j = Math.floor(h/24);
+  if(j === 1) return 'hier';
+  if(j < 7) return 'il y a ' + j + ' jours';
+  return new Date(iso).toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
+}
+
+
+// ============================================================
+//  ANNONCES ET ADMINISTRATION
+// ============================================================
+// L'administrateur peut publier et notifier. Il n'a aucun acces
+// aux donnees des membres : les politiques RLS des autres tables
+// ne lui accordent rien de plus qu'a n'importe qui.
+let estAdmin = false;
+let admTonChoisi = 'info';
+
+async function chargerAnnonces(){
+  const el = document.getElementById('annonces');
+  if(!el) return;
+  let liste = [];
+  try{
+    const res = await db.from('annonces').select('*').order('created_at', {ascending:false});
+    if(res.error) throw res.error;
+    liste = res.data || [];
+  }catch(e){ console.error('Annonces indisponibles', e); return; }
+
+  let masquees = [];
+  try{ masquees = JSON.parse(localStorage.getItem('fonte-annonces-vues') || '[]'); }catch(e){}
+  const visibles = liste.filter(function(a){ return masquees.indexOf(a.id) === -1; });
+
+  el.innerHTML = visibles.map(function(a){
+    return '<div class="annonce ' + a.ton + '">' +
+      '<button class="annonce-x" onclick="masquerAnnonce(\'' + a.id + '\')" aria-label="Masquer">\u2715</button>' +
+      '<div class="annonce-titre">' + String(a.titre).replace(/</g,'&lt;') + '</div>' +
+      '<div class="annonce-corps">' + String(a.corps).replace(/</g,'&lt;') + '</div>' +
+    '</div>';
+  }).join('');
+
+  if(estAdmin) renderAdmListe(liste);
+}
+
+function masquerAnnonce(id){
+  let v = [];
+  try{ v = JSON.parse(localStorage.getItem('fonte-annonces-vues') || '[]'); }catch(e){}
+  v.push(id);
+  try{ localStorage.setItem('fonte-annonces-vues', JSON.stringify(v)); }catch(e){}
+  chargerAnnonces();
+}
+
+function admTon(t){
+  admTonChoisi = t;
+  document.querySelectorAll('.theme-btn[data-ton]').forEach(function(b){
+    b.classList.toggle('active', b.dataset.ton === t);
+  });
+}
+
+async function publierAnnonce(){
+  const titre = document.getElementById('adm-titre').value.trim();
+  const corps = document.getElementById('adm-corps').value.trim();
+  const jours = parseInt(document.getElementById('adm-jours').value, 10) || 7;
+  const notifier = document.getElementById('adm-notifier').checked;
+  if(titre.length < 3 || corps.length < 3){ showToast('Titre et message obligatoires'); return; }
+  try{
+    const res = await db.rpc('publier_annonce', {
+      p_titre: titre, p_corps: corps, p_ton: admTonChoisi,
+      p_jours: jours, p_notifier: notifier
+    });
+    if(res.error) throw res.error;
+    document.getElementById('adm-titre').value = '';
+    document.getElementById('adm-corps').value = '';
+    showToast('Annonce publiee');
+    chargerAnnonces();
+    chargerNotifs();
+  }catch(e){ showToast(e.message || 'Publication impossible'); }
+}
+
+async function diffuserNotif(){
+  const titre = document.getElementById('adm-ntitre').value.trim();
+  const corps = document.getElementById('adm-ncorps').value.trim();
+  if(titre.length < 3){ showToast('Donne un titre'); return; }
+  const ok = await confirmer('Envoyer a tous les membres ?',
+    'Une notification sera creee pour chaque compte.', 'Envoyer');
+  if(!ok) return;
+  try{
+    const res = await db.rpc('diffuser_notification', {titre: titre, corps: corps});
+    if(res.error) throw res.error;
+    document.getElementById('adm-ntitre').value = '';
+    document.getElementById('adm-ncorps').value = '';
+    showToast((res.data && res.data.envoyees ? res.data.envoyees : 0) + ' notification(s) envoyee(s)');
+    chargerNotifs();
+  }catch(e){ showToast(e.message || 'Envoi impossible'); }
+}
+
+function renderAdmListe(liste){
+  const el = document.getElementById('adm-liste');
+  if(!el) return;
+  if(!liste.length){ el.innerHTML = '<p class="recap-empty">Aucune annonce en cours.</p>'; return; }
+  el.innerHTML = liste.map(function(a){
+    return '<div class="person-row">' +
+      '<div class="person-info">' +
+        '<div class="person-name">' + String(a.titre).replace(/</g,'&lt;') + '</div>' +
+        '<div class="person-meta">' + a.ton + ' &middot; ' + dateRelative(a.created_at) + '</div>' +
+      '</div>' +
+      '<div class="person-actions">' +
+        '<button onclick="retirerAnnonce(\'' + a.id + '\')">Retirer</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+async function retirerAnnonce(id){
+  const ok = await confirmer('Retirer cette annonce ?',
+    'Elle ne sera plus affichee. Les notifications deja envoyees restent.', 'Retirer');
+  if(!ok) return;
+  try{
+    const res = await db.from('annonces').update({active:false}).eq('id', id);
+    if(res.error) throw res.error;
+    showToast('Annonce retiree');
+    chargerAnnonces();
+  }catch(e){ showToast('Action impossible'); }
+}
+
 // ============================================================
 //  BILAN MENSUEL
 // ============================================================
@@ -1710,6 +2021,21 @@ function computeBilan(m){
   };
 }
 
+// Verifier le bilan d'un mois donne sans attendre le 1er.
+// Exemple depuis la console : testerBilan(2026, 8) pour aout.
+function testerBilan(annee, moisHumain){
+  const m = (annee && moisHumain)
+    ? {annee: annee, mois: moisHumain - 1}
+    : moisPrecedent();
+  const b = computeBilan(m);
+  if(b.vide){
+    showToast('Aucune donnee pour ' + nomMois(m));
+    console.warn('Bilan vide pour', nomMois(m), '- essaie un autre mois.');
+    return;
+  }
+  ouvrirBilan(m);
+}
+
 // ---- Banniere sur l'accueil ----
 function renderBilanBanniere(){
   const el = document.getElementById('bilan-banniere');
@@ -1739,8 +2065,10 @@ let bilanData = null;
 let bilanIndex = 0;
 let bilanEcrans = [];
 
-function ouvrirBilan(){
-  bilanData = computeBilan(moisPrecedent());
+// `mois` est optionnel : sans argument, c'est le mois precedent.
+// Sert aussi a verifier le rendu avant le 1er, sans attendre.
+function ouvrirBilan(mois){
+  bilanData = computeBilan(mois || moisPrecedent());
   bilanEcrans = construireEcransBilan(bilanData);
   bilanIndex = 0;
   document.getElementById('bilan-screen').classList.add('actif');
@@ -2599,7 +2927,7 @@ async function pingPresence(){
 function demarrerPresence(){
   pingPresence();
   if(pingTimer) clearInterval(pingTimer);
-  pingTimer = setInterval(pingPresence, 3*60*1000);
+  pingTimer = setInterval(function(){ pingPresence(); chargerNotifs(); }, 3*60*1000);
   document.addEventListener('visibilitychange', function(){
     if(!document.hidden) pingPresence();
   });
@@ -2635,6 +2963,9 @@ async function setPartagePresence(actif){
     if(res.error) throw res.error;
     partagePresence = actif;
     renderPresenceBtns();
+  majBoutonInstall();
+  majBoutonNotifs();
+  majAccesAdmin();
     showToast(actif ? 'Ton statut est visible' : 'Ton statut est masque');
   }catch(e){ showToast(e.message || 'Enregistrement impossible'); }
 }
@@ -3464,6 +3795,9 @@ async function setPartageSeances(actif){
     partageSeances = actif;
     renderPartageBtns();
   renderPresenceBtns();
+  majBoutonInstall();
+  majBoutonNotifs();
+  majAccesAdmin();
     showToast(actif ? 'Tes seances sont visibles par tes amis' : 'Tes seances sont privees');
   }catch(e){ showToast(e.message || 'Enregistrement impossible'); }
 }

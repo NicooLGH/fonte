@@ -2004,3 +2004,64 @@ table tr{border-color:var(--glass-tint-strong);}
 /* Une ligne d'info vide gardait son cadre et laissait une barre
    coloree sans contenu. */
 .info-line:empty{display:none;}
+
+/* ============================================================
+   NOTIFICATIONS ET ANNONCES
+   ============================================================ */
+.nav-notif{
+  position:relative;
+  width:34px;height:34px;flex-shrink:0;padding:0;
+  border-radius:50%;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-tint);
+  color:var(--ink-soft);
+  display:flex;align-items:center;justify-content:center;
+}
+.nav-notif svg{width:16px;height:16px;display:block;}
+.nav-notif:hover{color:var(--ink);border-color:rgba(255,255,255,0.22);}
+.notif-pastille{
+  position:absolute;top:-3px;right:-3px;
+  min-width:16px;height:16px;padding:0 4px;border-radius:999px;
+  background:var(--accent);color:#fff;
+  font-family:var(--font-mono);font-size:9.5px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+.notif-item{
+  padding:14px 0;border-bottom:1px solid var(--hairline);
+}
+.notif-item:last-child{border-bottom:none;}
+.notif-item.neuve{padding-left:12px;border-left:2px solid var(--accent);}
+.notif-titre{font-family:var(--font-body);font-weight:600;font-size:14px;color:var(--ink);}
+.notif-corps{font-size:13.5px;color:var(--ink-soft);margin-top:4px;line-height:1.45;}
+.notif-date{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);opacity:.7;margin-top:6px;}
+
+/* ---- Annonces ---- */
+.annonce{
+  position:relative;
+  padding:18px 46px 18px 20px;margin-bottom:14px;
+  border-radius:20px;border:1px solid var(--glass-border);
+  background:var(--glass-solid);
+}
+.annonce.info{border-color:rgba(var(--accent-2-rgb),0.4);}
+.annonce.succes{border-color:rgba(var(--accent-2-rgb),0.55);background:rgba(var(--accent-2-rgb),0.07);}
+.annonce.alerte{border-color:rgba(var(--accent-rgb),0.5);background:rgba(var(--accent-rgb),0.07);}
+.annonce-titre{font-family:var(--font-body);font-weight:600;font-size:15px;color:var(--ink);}
+.annonce-corps{font-size:13.5px;color:var(--ink-soft);margin-top:6px;line-height:1.5;}
+.annonce-x{
+  position:absolute;top:12px;right:12px;
+  width:26px;height:26px;border-radius:50%;
+  background:var(--glass-tint);border:none;
+  color:var(--ink-soft);font-size:11px;cursor:pointer;
+}
+.annonce-x:hover{color:var(--ink);}
+
+.etat-ok{
+  font-family:var(--font-mono);font-size:12px;color:var(--accent-2);
+  display:inline-flex;align-items:center;gap:6px;
+}
+.etat-ok::before{content:'\2713';}
+
+@media(max-width:900px){
+  .nav-notif{display:flex;width:33px;height:33px;}
+  .nav-notif svg{width:15px;height:15px;}
+}
