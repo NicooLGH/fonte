@@ -503,7 +503,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.8.3';
+const APP_VERSION = 'v3.8.4';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -2990,7 +2990,44 @@ function fermerDialog(valeur){
   document.getElementById('dialog-modal').style.display = 'none';
   const extra = document.getElementById('grp-edit');
   if(extra) extra.remove();
+  const champ = document.getElementById('dialog-champ');
+  if(champ) champ.remove();
   if(dialogResolve){ dialogResolve(valeur); dialogResolve = null; }
+}
+
+// Remplace prompt() : meme role, mais dans le style du site et
+// avec un vrai clavier numerique sur telephone.
+function demander(titre, texte, options){
+  const o = options || {};
+  document.getElementById('dialog-titre').textContent = titre;
+  document.getElementById('dialog-texte').textContent = texte || '';
+  document.getElementById('dialog-texte').insertAdjacentHTML('afterend',
+    '<div class="wiz-field" id="dialog-champ" style="margin-top:6px;">' +
+      (o.label ? '<label>' + o.label + '</label>' : '') +
+      '<input type="' + (o.type || 'text') + '" id="dialog-input" ' +
+        (o.step ? 'step="' + o.step + '" ' : '') +
+        (o.type === 'number' ? 'inputmode="decimal" ' : '') +
+        'value="' + (o.valeur == null ? '' : String(o.valeur).replace(/"/g,'&quot;')) + '" ' +
+        'placeholder="' + (o.placeholder || '') + '">' +
+      (o.aide ? '<div class="wiz-hint">' + o.aide + '</div>' : '') +
+    '</div>');
+  document.getElementById('dialog-actions').innerHTML =
+    '<button class="small" onclick="fermerDialog(null)">Annuler</button>' +
+    '<button class="primary" onclick="validerDialog()">' + (o.ok || 'Valider') + '</button>';
+  document.getElementById('dialog-modal').style.display = 'flex';
+
+  const champ = document.getElementById('dialog-input');
+  setTimeout(function(){ champ.focus(); champ.select(); }, 60);
+  champ.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); validerDialog(); }
+  });
+
+  return new Promise(function(res){ dialogResolve = res; });
+}
+
+function validerDialog(){
+  const champ = document.getElementById('dialog-input');
+  fermerDialog(champ ? champ.value : null);
 }
 
 function afficherInfo(titre, texte){
@@ -5286,15 +5323,21 @@ function editExoGroupe(id){
   });
 }
 
-function editExoGoal(id){
-  const exo = exercices.find(e=>e.id===id);
+async function editExoGoal(id){
+  const exo = exercices.find(function(e){ return e.id === id; });
   if(!exo) return;
-  const val = prompt(`Objectif de poids pour "${exo.name}" (kg, laisser vide pour aucun) :`, exo.objectif ?? '');
-  if(val===null) return;
-  exo.objectif = parseFloat(val)||null;
-  save('exercices', exercices);
-  renderExoList(); renderHome(); renderPerfChart();
-  showToast('Objectif mis à jour ✓');
+  const val = await demander('Objectif de charge', exo.name, {
+    type:'number', step:'0.5', label:'Objectif (kg)',
+    valeur: exo.objectif, placeholder:'\u2014',
+    aide:"Laisse vide pour retirer l'objectif.", ok:'Enregistrer'
+  });
+  if(val === null) return;
+  const n = parseFloat(val);
+  exo.objectif = (String(val).trim() === '' || isNaN(n)) ? null : n;
+  const ok = await save('exercices', exercices);
+  if(!ok) return;
+  renderExoList(); renderHome(); renderPerfChart(); renderNextMilestone();
+  showToast(exo.objectif == null ? 'Objectif retire' : 'Objectif mis a jour');
 }
 
 function renderPerfChartSelect(){
