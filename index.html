@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FONTE">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=381">
+<link rel="stylesheet" href="style.css?v=382">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -842,7 +842,7 @@
 
 <nav id="bottom-nav" style="display:none;">
   <button class="bn-item" data-bn="accueil"><span class="bn-ico">🏠</span><span class="bn-lab">Accueil</span></button>
-  <button class="bn-item" data-bn="amis"><span class="bn-ico">👥</span><span class="bn-lab">Amis<span class="bn-badge" id="bn-badge-amis" style="display:none;"></span></span></button>
+  <button class="bn-item" onclick="ouvrirPlus()"><span class="bn-ico">☰</span><span class="bn-lab">Plus<span class="bn-badge" id="bn-badge-plus" style="display:none;"></span></span></button>
   <button class="bn-plus" onclick="ouvrirActionRapide()" aria-label="Ajouter">+</button>
   <button class="bn-item" data-bn="performances"><span class="bn-ico">🏋️</span><span class="bn-lab">Perf.</span></button>
   <button class="bn-item" data-bn="moi"><span class="bn-ico" id="bn-avatar">💪</span><span class="bn-lab">Profil</span></button>
@@ -883,6 +883,16 @@
       <button class="wiz-close" onclick="fermerNotifs()" aria-label="Fermer">✕</button>
     </div>
     <div class="liste-corps" id="notif-corps"></div>
+  </div>
+</div>
+
+<div id="menu-plus" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) fermerPlus()">
+  <div class="modal-card" style="max-width:400px;">
+    <h3>Naviguer</h3>
+    <div id="menu-plus-corps"></div>
+    <div class="modal-actions">
+      <button class="small" onclick="fermerPlus()">Fermer</button>
+    </div>
   </div>
 </div>
 
@@ -938,6 +948,6 @@
 
 
 
-<script src="app.js?v=381"></script>
+<script src="app.js?v=382"></script>
 </body>
 </html>

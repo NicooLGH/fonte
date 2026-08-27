@@ -503,7 +503,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.8.1';
+const APP_VERSION = 'v3.8.2';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -4114,12 +4114,51 @@ function majBottomNav(){
   document.querySelectorAll('.bn-item[data-bn]').forEach(function(b){
     b.classList.toggle('active', b.dataset.bn === vue);
   });
-  const badge = document.getElementById('bn-badge-amis');
+  const badge = document.getElementById('bn-badge-plus');
   const src = document.getElementById('tab-badge-amis');
   if(badge && src){
     badge.textContent = src.textContent;
     badge.style.display = src.style.display === 'none' ? 'none' : 'inline-flex';
   }
+}
+
+// La barre basse ne tient que quatre entrees : Suivi hebdo et
+// Analyse n'y rentraient pas, et le burger ayant disparu sur
+// mobile, ces deux pages devenaient inaccessibles.
+function ouvrirPlus(){
+  const wk = isoWeekKey(new Date());
+  const releve = suivi.find(function(x){ return x.weekKey === wk; });
+  const enAttente = (amisData.attente || []).length;
+
+  const entrees = [
+    {vue:'suivi', ico:'\u2696\uFE0F', titre:'Suivi hebdo',
+     sous: releve ? 'Releve de la semaine enregistre' : 'Pas encore rempli cette semaine'},
+    {vue:'analyse', ico:'\u{1F4CA}', titre:'Analyse',
+     sous:'Equilibre musculaire, records et assiduite'},
+    {vue:'amis', ico:'\u{1F465}', titre:'Amis',
+     sous: enAttente ? enAttente + ' demande(s) en attente' : 'Fil, demandes et recherche',
+     badge: enAttente},
+    {vue:'moi', ico:'\u{1F464}', titre:'Mon profil',
+     sous:'Niveau, statistiques et donnees'}
+  ];
+
+  document.getElementById('menu-plus-corps').innerHTML = entrees.map(function(e){
+    return '<button class="action-choix" onclick="fermerPlus(); allerVue(\'' + e.vue + '\')">' +
+      '<span class="action-ico">' + e.ico + '</span>' +
+      '<span class="action-txt"><strong>' + e.titre +
+        (e.badge ? ' <span class="tab-badge">' + e.badge + '</span>' : '') + '</strong>' +
+      '<small>' + e.sous + '</small></span></button>';
+  }).join('') +
+  '<button class="action-choix" onclick="fermerPlus(); openSettings()">' +
+    '<span class="action-ico">\u2699\uFE0F</span>' +
+    '<span class="action-txt"><strong>Reglages</strong>' +
+    '<small>Compte, apparence, confidentialite</small></span></button>';
+
+  document.getElementById('menu-plus').style.display = 'flex';
+}
+
+function fermerPlus(){
+  document.getElementById('menu-plus').style.display = 'none';
 }
 
 function ouvrirActionRapide(){

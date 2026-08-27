@@ -2120,3 +2120,8 @@ input[type="color"]{
 .adm-etat.active{color:var(--accent-2);background:rgba(var(--accent-2-rgb),0.12);}
 .adm-etat.retiree{color:var(--ink-soft);background:var(--glass-tint);}
 .adm-etat.expiree{color:var(--hazard);background:rgba(255,212,0,0.1);}
+
+/* Le menu "Plus" de la barre basse */
+#menu-plus{z-index:1150;}
+#menu-plus .action-choix:last-child{margin-bottom:0;}
+.action-txt strong .tab-badge{margin-left:6px;}
