@@ -503,7 +503,7 @@ async function loadAll(){
   else safe('rappel hebdo', checkWeeklyReminder);
 }
 
-const APP_VERSION = 'v3.8.2';
+const APP_VERSION = 'v3.8.3';
 const numOrNull = v => v==null ? null : Number(v);
 
 function renderVersionAndWeek(){
@@ -3966,9 +3966,29 @@ async function save(key, value){
     return true;
   }catch(e){
     console.error('Erreur de sauvegarde', key, e);
-    showToast('⚠️ Sauvegarde impossible — vérifie ta connexion');
+    showToast('\u26A0\uFE0F ' + messageErreur(e));
     return false;
   }
+}
+
+// La base impose ses propres regles : mieux vaut les traduire
+// que d'afficher un message technique ou, pire, un « verifie ta
+// connexion » alors que le reseau fonctionne tres bien.
+function messageErreur(e){
+  const m = String((e && (e.message || e.details || e.hint)) || '').toLowerCase();
+  if(m.includes('seances_user_date_unique'))
+    return 'Une seance existe deja pour ce jour — modifie-la plutot que d\'en creer une seconde';
+  if(m.includes('suivi_user_week_unique'))
+    return 'Un releve existe deja pour cette semaine';
+  if(m.includes('profiles_pseudo_unique'))
+    return 'Ce pseudo est deja pris';
+  if(m.includes('duplicate key') || m.includes('unique'))
+    return 'Cette entree existe deja';
+  if(m.includes('violates') || m.includes('constraint'))
+    return 'Enregistrement refuse par le carnet';
+  if(m.includes('failed to fetch') || m.includes('network') || !navigator.onLine)
+    return 'Sauvegarde impossible — verifie ta connexion';
+  return 'Sauvegarde impossible';
 }
 
 const uid = () => currentUser.id;
